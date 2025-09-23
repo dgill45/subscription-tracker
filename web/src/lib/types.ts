@@ -1,5 +1,6 @@
 export type Period = "monthly" | "annual";
 
+
 export type SubStatus = "active" | "canceled";
 
 
@@ -24,6 +25,7 @@ period: Period;
 nextBillDate: string;
 notes?: string;
 }
+
 
 export function validateSubscriptionInput(input: any): { ok: true } | { ok: false; errors: string[] } {
 const errors: string[] = [];

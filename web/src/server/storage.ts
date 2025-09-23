@@ -1,10 +1,11 @@
 import "server-only";
 import { promises as fs } from "fs";
+import { randomUUID } from "crypto";
 import path from "path";
 import { Subscription, SubscriptionInput } from "@/lib/types";
 
 
-const DATA_DIR = path.join(process.cwd(), "web", ".data");
+const DATA_DIR = path.join(process.cwd(), ".data");
 const DB_PATH = path.join(DATA_DIR, "subscriptions.json");
 
 
@@ -31,7 +32,7 @@ await fs.writeFile(DB_PATH, JSON.stringify(data, null, 2), "utf8");
 }
 
 
-const DEMO_USER = "demo-user"; // TODO(#issue-1): replace with Cognito subject
+const DEMO_USER = "demo-user"; // TODO: replace with Cognito subject
 
 
 export async function listSubscriptions(userId = DEMO_USER): Promise<Subscription[]> {
@@ -43,7 +44,7 @@ return db.subscriptions.filter((s) => s.userId === userId).sort((a, b) => a.merc
 export async function createSubscription(input: SubscriptionInput, userId = DEMO_USER): Promise<Subscription> {
 const now = new Date().toISOString();
 const sub: Subscription = {
-id: crypto.randomUUID(),
+id: randomUUID(),
 userId,
 merchant: input.merchant.trim(),
 amount: Number(input.amount),
