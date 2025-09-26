@@ -1,3 +1,6 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { createSubscription, listSubscriptions } from "@/server/storage";
 import { validateSubscriptionInput } from "@/lib/types";

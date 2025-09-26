@@ -29,34 +29,36 @@ return (
 
 
 <Card title="Your subscriptions">
-{subs.length === 0 ? (
-<p className="text-sm text-gray-600">No subscriptions yet.</p>
-) : (
-<div className="overflow-hidden rounded-md border">
-<table className="w-full text-sm">
-<thead className="bg-gray-50 text-left">
-<tr>
-<th className="px-3 py-2">Merchant</th>
-<th className="px-3 py-2">Amount</th>
-<th className="px-3 py-2">Period</th>
-<th className="px-3 py-2">Next bill</th>
-<th className="px-3 py-2">Status</th>
-</tr>
-</thead>
-<tbody>
-{subs.map((s) => (
-<tr key={s.id} className="border-t">
-<td className="px-3 py-2">{s.merchant}</td>
-<td className="px-3 py-2">{s.amount.toLocaleString(undefined, { style: "currency", currency: "USD" })}</td>
-<td className="px-3 py-2">{s.period}</td>
-<td className="px-3 py-2">{s.nextBillDate}</td>
-<td className="px-3 py-2">{s.status}</td>
-</tr>
-))}
-</tbody>
-</table>
-</div>
-)}
+  {subs.length === 0 ? (
+    <p className="text-sm text-gray-600 dark:text-gray-300">No subscriptions yet.</p>
+  ) : (
+    <div className="overflow-hidden rounded-md border text-gray-900 dark:text-gray-100">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 dark:bg-gray-800 text-left">
+          <tr>
+            <th className="px-3 py-2">Merchant</th>
+            <th className="px-3 py-2">Amount</th>
+            <th className="px-3 py-2">Period</th>
+            <th className="px-3 py-2">Next bill</th>
+            <th className="px-3 py-2">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {subs.map((s) => (
+            <tr key={s.id} className="border-t">
+              <td className="px-3 py-2">{s.merchant}</td>
+              <td className="px-3 py-2">
+                {s.amount.toLocaleString(undefined, { style: "currency", currency: "USD" })}
+              </td>
+              <td className="px-3 py-2">{s.period}</td>
+              <td className="px-3 py-2">{s.nextBillDate}</td>
+              <td className="px-3 py-2">{s.status}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
 </Card>
 </div>
 );

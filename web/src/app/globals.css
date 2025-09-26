@@ -1,5 +1,22 @@
 @import "tailwindcss";
 
+/* Global base styles for form fields */
+@layer base {
+  input, textarea, select {
+    @apply w-full rounded border px-3 py-2 bg-white text-gray-900 placeholder:text-gray-500;
+    /* keep readable in dark mode too */
+    @apply dark:bg-gray-900 dark:text-gray-100;
+    /* prevent browser auto-darkening date/time pickers */
+    color-scheme: light;
+  }
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"] {
+    color-scheme: light;
+    @apply bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+  }
+}
+  
 :root {
   --background: #ffffff;
   --foreground: #171717;
