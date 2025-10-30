@@ -4,6 +4,7 @@ import { computeTotals } from "@/lib/types";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { StatTile } from "@/components/StatTile";
+import { DeleteButton } from "@/components/DeleteButton";
 
 
 export default async function SubscriptionsPage() {
@@ -41,6 +42,7 @@ return (
             <th className="px-3 py-2">Period</th>
             <th className="px-3 py-2">Next bill</th>
             <th className="px-3 py-2">Status</th>
+            <th className="px-3 py-2">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -53,6 +55,10 @@ return (
               <td className="px-3 py-2">{s.period}</td>
               <td className="px-3 py-2">{s.nextBillDate}</td>
               <td className="px-3 py-2">{s.status}</td>
+              <td className="px-3 py-2 flex gap-2">
+                <a href={`/subscriptions/${s.id}/edit`} className="underline">Edit</a>
+                <DeleteButton id={s.id} />
+              </td>
             </tr>
           ))}
         </tbody>
