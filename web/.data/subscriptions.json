@@ -12,15 +12,15 @@
       "updatedAt": "2025-09-26T02:13:54.526Z"
     },
     {
-      "id": "0fdd0f37-fa13-4721-90ea-853d315a707e",
+      "id": "51f48358-fbc7-44af-9d88-3eda0da65b84",
       "userId": "demo-user",
-      "merchant": "Consumer Reports",
-      "amount": 50,
+      "merchant": "AAA",
+      "amount": 142,
       "period": "annual",
-      "nextBillDate": "2025-09-01",
+      "nextBillDate": "2025-04-12",
       "status": "active",
-      "createdAt": "2025-09-26T02:16:13.239Z",
-      "updatedAt": "2025-09-26T02:16:13.239Z"
+      "createdAt": "2025-10-30T19:43:32.617Z",
+      "updatedAt": "2025-10-30T19:43:32.617Z"
     }
   ]
 }
