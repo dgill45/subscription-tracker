@@ -21,6 +21,30 @@
       "status": "active",
       "createdAt": "2025-10-30T19:43:32.617Z",
       "updatedAt": "2025-10-30T19:43:32.617Z"
+    },
+    {
+      "id": "e904f57f-498a-4c33-9d14-39034b177c60",
+      "userId": "demo-user",
+      "merchant": "Spotify *12345",
+      "amount": 9.99,
+      "period": "monthly",
+      "nextBillDate": "2025-11-13",
+      "notes": "Imported via CSV. cadence=monthly",
+      "status": "active",
+      "createdAt": "2025-10-31T14:07:05.275Z",
+      "updatedAt": "2025-10-31T14:07:05.275Z"
+    },
+    {
+      "id": "f7f68012-dbbe-43c4-93f8-3d17150623ff",
+      "userId": "demo-user",
+      "merchant": "Netflix.com",
+      "amount": 15.49,
+      "period": "monthly",
+      "nextBillDate": "2025-11-19",
+      "notes": "Imported via CSV. cadence=monthly",
+      "status": "active",
+      "createdAt": "2025-10-31T14:07:05.548Z",
+      "updatedAt": "2025-10-31T14:07:05.548Z"
     }
   ]
 }

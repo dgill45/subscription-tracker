@@ -1,4 +1,3 @@
-// web/app/import/page.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -18,12 +17,43 @@ interface Suggestion {
   }[];
 }
 
+// helper for nextBillDate
+function addDays(isoDate: string, days: number): string {
+  const d = new Date(isoDate + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export default function ImportPage() {
   const [csvText, setCsvText] = useState('');
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [statusMsg, setStatusMsg] = useState('');
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Simple guard: only allow .csv-ish mime or name
+    if (
+      !file.name.toLowerCase().endsWith('.csv') &&
+      file.type !== 'text/csv' &&
+      file.type !== 'application/vnd.ms-excel' 
+    ) {
+      setStatusMsg('Please select a .csv file');
+      return;
+    }
+
+    const text = await file.text();
+    setCsvText(text);
+    setStatusMsg(`Loaded ${file.name} (${text.length} chars)`);
+  }
 
   async function handleAnalyze() {
     setLoading(true);
@@ -45,10 +75,11 @@ export default function ImportPage() {
       }
 
       setSuggestions(data.suggestions || []);
-      // reset selected
+
+      // default all rows to checked
       const sel: Record<string, boolean> = {};
       (data.suggestions || []).forEach((s: Suggestion) => {
-        sel[s.merchant] = true; // pre-check everything
+        sel[s.merchant] = true;
       });
       setSelected(sel);
     } catch (err: any) {
@@ -66,56 +97,43 @@ export default function ImportPage() {
     }));
   }
 
-    function addDays(isoDate: string, days: number): string {
-        const d = new Date(isoDate + "T00:00:00Z");
-        d.setUTCDate(d.getUTCDate() + days);
+  async function handleAddSelected() {
+    setLoading(true);
+    setStatusMsg('');
 
-        const yyyy = d.getUTCFullYear();
-        const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-        const dd = String(d.getUTCDate()).padStart(2, "0");
+    try {
+      for (const sug of suggestions) {
+        if (!selected[sug.merchant]) continue;
 
-        return `${yyyy}-${mm}-${dd}`;
-    }
+        // Build SubscriptionInput to satisfy validateSubscriptionInput()
+        const newSub = {
+          merchant: sug.displayName || sug.merchant,
+          amount: sug.averageAmount,
+          period: 'monthly', // for now we always classify as monthly
+          nextBillDate: addDays(sug.lastChargeDate, 30),
+          notes: `Imported via CSV. cadence=${sug.cadence}`,
+        };
 
-    async function handleAddSelected() {
-        setLoading(true);
-        setStatusMsg('');
+        const res = await fetch('/api/subscriptions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newSub),
+        });
 
-        try {
-            for (const sug of suggestions) {
-            if (!selected[sug.merchant]) continue;
-
-            // Infer next bill ~30 days from last charge
-            const estimatedNextBill = addDays(sug.lastChargeDate, 30);
-
-            const newSub = {
-                merchant: sug.displayName || sug.merchant,
-                amount: sug.averageAmount,
-                period: sug.cadence === 'monthly' ? 'monthly' : 'monthly', // future: map 'weekly' differently if you extend Period
-                nextBillDate: estimatedNextBill,
-                notes: `Imported via CSV on /import. cadence=${sug.cadence}`,
-            };
-
-            const res = await fetch('/api/subscriptions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newSub),
-            });
-
-            if (!res.ok) {
-                const errJson = await res.json().catch(() => ({}));
-                console.error('Failed to create sub', newSub, errJson);
-            }
-            }
-
-            setStatusMsg('Selected subscriptions added ✅');
-        } catch (err: any) {
-            console.error(err);
-            setStatusMsg('Error adding subscriptions.');
-        } finally {
-            setLoading(false);
+        if (!res.ok) {
+          const errJson = await res.json().catch(() => ({}));
+          console.error('Failed to create sub', newSub, errJson);
         }
+      }
+
+      setStatusMsg('Selected subscriptions added ✅');
+    } catch (err: any) {
+      console.error(err);
+      setStatusMsg('Error adding subscriptions.');
+    } finally {
+      setLoading(false);
     }
+  }
 
   return (
     <main style={{ maxWidth: '900px', margin: '2rem auto', fontFamily: 'sans-serif' }}>
@@ -131,6 +149,31 @@ export default function ImportPage() {
           marginBottom: '1.5rem',
         }}
       >
+        <div style={{ marginBottom: '1rem' }}>
+            <label
+                htmlFor="csvfile"
+                style={{ display: 'block', fontWeight: 500, marginBottom: '0.5rem' }}
+            >
+                Upload CSV file:
+            </label>
+
+            <input
+                id="csvfile"
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleFileSelect}
+                style={{
+                display: 'block',
+                marginBottom: '0.5rem',
+                color: '#eee',
+                }}
+            />
+
+            <div style={{ fontSize: '0.8rem', color: '#999', lineHeight: 1.4 }}>
+                We’ll read the file and show recurring charges. You can still edit the text below before Analyze.
+            </div>
+        </div>
+
         <label
           htmlFor="csv"
           style={{ display: 'block', fontWeight: 500, marginBottom: '0.5rem' }}
@@ -142,10 +185,10 @@ export default function ImportPage() {
           value={csvText}
           onChange={(e) => setCsvText(e.target.value)}
           placeholder={`Date,Description,Amount
-            2025-09-14,SPOTIFY *12345,-9.99
-            2025-10-14,SPOTIFY *12345,-9.99
-            2025-10-03,NETFLIX.COM,-15.49
-            `}
+                        2025-09-14,SPOTIFY *12345,-9.99
+                        2025-10-14,SPOTIFY *12345,-9.99
+                        2025-10-03,NETFLIX.COM,-15.49
+                        `}
           style={{
             width: '100%',
             minHeight: '150px',
@@ -156,8 +199,8 @@ export default function ImportPage() {
             border: '1px solid #666',
             backgroundColor: '#111',
             color: '#eee',
-                }}
-                />
+          }}
+        />
 
         <button
           onClick={handleAnalyze}
@@ -172,7 +215,7 @@ export default function ImportPage() {
             fontWeight: 600,
             cursor: 'pointer',
             opacity: loading ? 0.6 : 1,
-        }}
+          }}
         >
           {loading ? 'Analyzing…' : 'Analyze CSV'}
         </button>
