@@ -14,7 +14,7 @@ export interface SubscriptionSuggestion {
   merchant: string;            // normalized
   displayName: string;         // best human-friendly merchant string
   averageAmount: number;       // avg charge
-  cadence: 'monthly' | 'weekly' | 'unknown';
+  cadence: 'weekly' | 'monthly' | 'annual' | 'unknown';
   lastChargeDate: string;      // ISO yyyy-mm-dd
   sampleTransactions: Transaction[];
 }
@@ -233,8 +233,9 @@ function clusterByAmount(txs: Transaction[]): Transaction[][] {
   return clusters;
 }
 
-// estimateCadence: average gap in days between charges
-function estimateCadence(txs: Transaction[]): 'monthly' | 'weekly' | 'unknown' {
+function estimateCadence(
+  txs: Transaction[]
+): 'weekly' | 'monthly' | 'annual' | 'unknown' {
   if (txs.length < 2) return 'unknown';
 
   const gaps: number[] = [];
@@ -245,13 +246,31 @@ function estimateCadence(txs: Transaction[]): 'monthly' | 'weekly' | 'unknown' {
     gaps.push(diffDays);
   }
 
-  const avgGap =
-    gaps.reduce((sum, d) => sum + d, 0) / gaps.length;
+  // Average distance between charges in days
+  const avgGap = gaps.reduce((sum, d) => sum + d, 0) / gaps.length;
 
-  if (avgGap > 20 && avgGap < 40) return 'monthly';
-  if (avgGap > 5 && avgGap < 10) return 'weekly';
+  // Heuristics:
+  // ~7 days     => weekly
+  // ~30 days    => monthly
+  // ~365 days   => annual
+  //
+  // We'll allow some fuzz because billing dates slide around on weekends/holidays.
+
+  if (avgGap > 330 && avgGap < 400) {
+    return 'annual';
+  }
+
+  if (avgGap > 20 && avgGap < 40) {
+    return 'monthly';
+  }
+
+  if (avgGap > 5 && avgGap < 10) {
+    return 'weekly';
+  }
+
   return 'unknown';
 }
+
 
 // bestDisplayName: pick the most common raw description (capitalized nicely)
 function bestDisplayName(txs: Transaction[]): string {
