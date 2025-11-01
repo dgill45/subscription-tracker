@@ -6,7 +6,7 @@ interface Suggestion {
   merchant: string;
   displayName: string;
   averageAmount: number;
-  cadence: 'monthly' | 'weekly' | 'unknown';
+  cadence: 'weekly' | 'monthly' | 'annual' | 'unknown';
   lastChargeDate: string;
   sampleTransactions: {
     date: string;
@@ -16,7 +16,6 @@ interface Suggestion {
     description?: string;
   }[];
 }
-
 // helper for nextBillDate
 function addDays(isoDate: string, days: number): string {
   const d = new Date(isoDate + "T00:00:00Z");
@@ -27,6 +26,25 @@ function addDays(isoDate: string, days: number): string {
   const dd = String(d.getUTCDate()).padStart(2, "0");
 
   return `${yyyy}-${mm}-${dd}`;
+}
+
+  function estimateNextBillDate(lastChargeDate: string, cadence: Suggestion['cadence']) {
+  switch (cadence) {
+    case 'weekly':
+      return addDays(lastChargeDate, 7);
+    case 'monthly':
+      return addDays(lastChargeDate, 30);
+    case 'annual':
+      return addDays(lastChargeDate, 365);
+    default:
+      // unknown? assume ~monthly
+      return addDays(lastChargeDate, 30);
+  }
+}
+
+function choosePeriod(cadence: Suggestion['cadence']): 'monthly' | 'annual' {
+  if (cadence === 'annual') return 'annual';
+  return 'monthly';
 }
 
 export default function ImportPage() {
@@ -98,42 +116,45 @@ export default function ImportPage() {
   }
 
   async function handleAddSelected() {
-    setLoading(true);
-    setStatusMsg('');
+  setLoading(true);
+  setStatusMsg('');
 
-    try {
-      for (const sug of suggestions) {
-        if (!selected[sug.merchant]) continue;
+  try {
+    for (const sug of suggestions) {
+      if (!selected[sug.merchant]) continue;
 
-        // Build SubscriptionInput to satisfy validateSubscriptionInput()
-        const newSub = {
-          merchant: sug.displayName || sug.merchant,
-          amount: sug.averageAmount,
-          period: 'monthly', // for now we always classify as monthly
-          nextBillDate: addDays(sug.lastChargeDate, 30),
-          notes: `Imported via CSV. cadence=${sug.cadence}`,
-        };
+      const nextBillDate = estimateNextBillDate(sug.lastChargeDate, sug.cadence);
+      const period = choosePeriod(sug.cadence);
 
-        const res = await fetch('/api/subscriptions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newSub),
-        });
+      const newSub = {
+        merchant: sug.displayName || sug.merchant,
+        amount: sug.averageAmount,
+        period,                // <-- now could be "monthly" or "annual"
+        nextBillDate,          // <-- now uses cadence to estimate
+        notes: `Imported via CSV. cadence=${sug.cadence}`,
+      };
 
-        if (!res.ok) {
-          const errJson = await res.json().catch(() => ({}));
-          console.error('Failed to create sub', newSub, errJson);
-        }
+      const res = await fetch('/api/subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSub),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        console.error('Failed to create sub', newSub, errJson);
       }
-
-      setStatusMsg('Selected subscriptions added ✅');
-    } catch (err: any) {
-      console.error(err);
-      setStatusMsg('Error adding subscriptions.');
-    } finally {
-      setLoading(false);
     }
+
+    setStatusMsg('Selected subscriptions added ✅');
+  } catch (err: any) {
+    console.error(err);
+    setStatusMsg('Error adding subscriptions.');
+  } finally {
+    setLoading(false);
   }
+}
+
 
   return (
     <main style={{ maxWidth: '900px', margin: '2rem auto', fontFamily: 'sans-serif' }}>
