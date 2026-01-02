@@ -49,6 +49,7 @@ return (
 <input name="merchant" placeholder="Merchant (e.g., Netflix)" className="w-full rounded border px-3 py-2" required />
 <input name="amount" type="number" step="0.01" min="0" placeholder="Amount (e.g., 15.99)" className="w-full rounded border px-3 py-2" required />
 <select name="period" className="w-full rounded border px-3 py-2">
+<option value="weekly">Weekly</option>
 <option value="monthly">Monthly</option>
 <option value="annual">Annual</option>
 </select>

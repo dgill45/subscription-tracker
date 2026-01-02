@@ -49,7 +49,8 @@ export function EditSubscriptionForm({ initial }: { initial: Subscription }) {
                className="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100 rounded border px-3 py-2"
                value={form.amount ? String(form.amount) : ""} onChange={(e) => update("amount", e.target.value === "" ? 0 : Number(e.target.value))} />
         <select className="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100 rounded border px-3 py-2"
-                value={form.period} onChange={(e) => update("period", e.target.value as "monthly" | "annual")}>
+                value={form.period} onChange={(e) => update("period", e.target.value as "weekly" | "monthly" | "annual")}>
+          <option value="weekly">Weekly</option>
           <option value="monthly">Monthly</option>
           <option value="annual">Annual</option>
         </select>

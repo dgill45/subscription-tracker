@@ -1,4 +1,4 @@
-export type Period = "monthly" | "annual";
+export type Period = "weekly" | "monthly" | "annual";
 
 
 export type SubStatus = "active" | "canceled";
@@ -33,7 +33,7 @@ if (!input || typeof input !== "object") errors.push("payload missing");
 if (!input.merchant || typeof input.merchant !== "string") errors.push("merchant required");
 const amount = Number(input.amount);
 if (!Number.isFinite(amount) || amount <= 0) errors.push("amount must be a positive number");
-if (input.period !== "monthly" && input.period !== "annual") errors.push("period must be 'monthly' or 'annual'");
+if (input.period !== "weekly" && input.period !== "monthly" && input.period !== "annual") errors.push("period must be 'weekly', 'monthly', or 'annual'");
 if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.nextBillDate))) errors.push("nextBillDate must be YYYY-MM-DD");
 return errors.length ? { ok: false, errors } : { ok: true };
 }
@@ -42,7 +42,12 @@ return errors.length ? { ok: false, errors } : { ok: true };
 export function computeTotals(subs: Subscription[]) {
 const monthly = subs
 .filter((s) => s.status === "active")
-.reduce((sum, s) => sum + (s.period === "monthly" ? s.amount : s.amount / 12), 0);
+.reduce((sum, s) => {
+  if (s.period === "monthly") return sum + s.amount;
+  if (s.period === "annual") return sum + (s.amount / 12);
+  if (s.period === "weekly") return sum + (s.amount * 52 / 12);
+  return sum;
+}, 0);
 const annual = monthly * 12;
 return { monthly, annual };
 }

@@ -1,127 +1,194 @@
-// web/src/server/storage.ts
-import "server-only";
-import { promises as fs } from "fs";
-import path from "path";
 import { randomUUID } from "crypto";
-import type { Subscription, SubscriptionInput, SubStatus } from "@/lib/types";
+import { ddb, TABLE_NAME, DEMO_USER_ID } from "../../server/dynamo";
+import {
+    PutCommand,
+    QueryCommand,
+    UpdateCommand,
+    DeleteCommand,
+    GetCommand
+ } from "@aws-sdk/lib-dynamodb";
+import {
+    Subscription,
+    SubscriptionInput,
+ } from "@/lib/types";
 
-const DATA_DIR = path.resolve(process.cwd(), ".data");
-const DB_PATH = path.join(DATA_DIR, "subscriptions.json");
-const DEMO_USER = "demo-user"; // TODO: replace with Cognito subject
+ function nowIso() {
+  return new Date().toISOString();
+}
 
-async function ensureFile() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
+
+export async function listSubscriptions(): Promise<Subscription[]> {
   try {
-    await fs.access(DB_PATH);
-  } catch {
-    const seed = { subscriptions: [] as Subscription[] };
-    await fs.writeFile(DB_PATH, JSON.stringify(seed, null, 2), "utf8");
+    const result = await ddb.send(
+      new QueryCommand({
+        TableName: TABLE_NAME,
+        KeyConditionExpression: "userId = :uid",
+        ExpressionAttributeValues: {
+          ":uid": DEMO_USER_ID,
+        },
+      })
+    );
+
+    return (result.Items || []) as Subscription[];
+  } catch (error) {
+    console.error("Error listing subscriptions:", error);
+    throw new Error("Failed to list subscriptions from database");
   }
 }
 
-async function readAll(): Promise<{ subscriptions: Subscription[] }> {
-  await ensureFile();
-  const raw = await fs.readFile(DB_PATH, "utf8");
-  try {
-    const data = JSON.parse(raw);
-    // guard against malformed file
-    if (!data || !Array.isArray(data.subscriptions)) {
-      return { subscriptions: [] };
-    }
-    return { subscriptions: data.subscriptions as Subscription[] };
-  } catch {
-    // if corrupted, reset to empty
-    return { subscriptions: [] };
-  }
-}
+export async function createSubscription(
+  input: SubscriptionInput
+): Promise<Subscription> {
+  const id = randomUUID();
+  const timestamp = nowIso();
 
-async function writeAll(data: { subscriptions: Subscription[] }) {
-  await fs.writeFile(DB_PATH, JSON.stringify(data, null, 2), "utf8");
-}
-
-/** LIST */
-export async function listSubscriptions(userId = DEMO_USER): Promise<Subscription[]> {
-  const db = await readAll();
-  return db.subscriptions
-    .filter((s) => s.userId === userId)
-    .sort((a, b) => a.merchant.localeCompare(b.merchant));
-}
-
-/** CREATE */
-export async function createSubscription(input: SubscriptionInput, userId = DEMO_USER): Promise<Subscription> {
-  const now = new Date().toISOString();
-  const sub: Subscription = {
-    id: randomUUID(),
-    userId,
-    merchant: input.merchant.trim(),
-    amount: Number(input.amount),
+  const item: Subscription = {
+    id,
+    userId: DEMO_USER_ID,
+    merchant: input.merchant,
+    amount: input.amount,
     period: input.period,
     nextBillDate: input.nextBillDate,
-    notes: input.notes?.trim() || undefined,
+    notes: input.notes,
     status: "active",
-    createdAt: now,
-    updatedAt: now,
+    createdAt: timestamp,
+    updatedAt: timestamp,
   };
-  const db = await readAll();
-  db.subscriptions.push(sub);
-  await writeAll(db);
-  return sub;
+
+  try {
+    await ddb.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: item,
+      })
+    );
+
+    return item;
+  } catch (error) {
+    console.error("Error creating subscription:", error);
+    throw new Error("Failed to create subscription in database");
+  }
 }
 
-/** READ by id */
-export async function getSubscriptionById(id: string, userId = DEMO_USER): Promise<Subscription | null> {
-  const db = await readAll();
-  return db.subscriptions.find((s) => s.userId === userId && s.id === id) ?? null;
+export async function getSubscriptionById(id: string): Promise<Subscription | null> {
+  try {
+    const res = await ddb.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          userId: DEMO_USER_ID,
+          id,
+        },
+      })
+    );
+
+    return (res.Item as Subscription) || null;
+  } catch (error) {
+    console.error("Error getting subscription by id:", error);
+    throw new Error("Failed to retrieve subscription from database");
+  }
 }
 
-/** UPDATE (partial) */
 export async function updateSubscription(
   id: string,
-  patch: Partial<SubscriptionInput>,
-  userId = DEMO_USER
+  updates: Partial<
+    Pick<
+      Subscription,
+      | "merchant"
+      | "amount"
+      | "period"
+      | "nextBillDate"
+      | "notes"
+      | "status"
+    >
+  >
 ): Promise<Subscription | null> {
-  const db = await readAll();
-  const idx = db.subscriptions.findIndex((s) => s.userId === userId && s.id === id);
-  if (idx === -1) return null;
 
-  const now = new Date().toISOString();
-  const current = db.subscriptions[idx];
-  const updated: Subscription = {
-    ...current,
-    merchant: patch.merchant ?? current.merchant,
-    amount: patch.amount ?? current.amount,
-    period: patch.period ?? current.period,
-    nextBillDate: patch.nextBillDate ?? current.nextBillDate,
-    notes: patch.notes === undefined ? current.notes : patch.notes,
-    updatedAt: now,
-  };
+  const allowedKeys: Array<
+    "merchant" | "amount" | "period" | "nextBillDate" | "notes" | "status"
+  > = [
+    "merchant",
+    "amount",
+    "period",
+    "nextBillDate",
+    "notes",
+    "status",
+  ];
 
-  db.subscriptions[idx] = updated;
-  await writeAll(db);
-  return updated;
+  // Build an object of only the fields that are actually being updated
+  const updatePayload: Record<string, unknown> = {};
+
+  for (const key of allowedKeys) {
+    if (updates[key] !== undefined) {
+      updatePayload[key] = updates[key];
+    }
+  }
+
+
+  if (Object.keys(updatePayload).length === 0) {
+    return await getSubscriptionById(id);
+  }
+
+
+  const updatedAtVal = new Date().toISOString();
+  updatePayload["updatedAt"] = updatedAtVal;
+
+
+  const exprParts: string[] = [];
+  const exprValues: Record<string, unknown> = {};
+
+  for (const [field, value] of Object.entries(updatePayload)) {
+    const placeholder = `:${field}`;
+    exprParts.push(`${field} = ${placeholder}`);
+    exprValues[placeholder] = value;
+  }
+
+  const UpdateExpression = "SET " + exprParts.join(", ");
+
+  try {
+    const res = await ddb.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          userId: DEMO_USER_ID,
+          id,
+        },
+        UpdateExpression,
+        ExpressionAttributeValues: exprValues,
+        ReturnValues: "ALL_NEW",
+      })
+    );
+
+    return (res.Attributes as Subscription) || null;
+  } catch (error) {
+    console.error("Error updating subscription:", error);
+    throw new Error("Failed to update subscription in database");
+  }
 }
 
-/** DELETE */
-export async function deleteSubscription(id: string, userId = DEMO_USER): Promise<boolean> {
-  const db = await readAll();
-  const before = db.subscriptions.length;
-  db.subscriptions = db.subscriptions.filter((s) => !(s.userId === userId && s.id === id));
-  const changed = db.subscriptions.length !== before;
-  if (changed) await writeAll(db);
-  return changed;
-}
 
-/** STATUS change (active/canceled) */
-export async function setSubscriptionStatus(
-  id: string,
-  status: SubStatus,
-  userId = DEMO_USER
-): Promise<Subscription | null> {
-  const db = await readAll();
-  const idx = db.subscriptions.findIndex((s) => s.userId === userId && s.id === id);
-  if (idx === -1) return null;
-  const now = new Date().toISOString();
-  db.subscriptions[idx] = { ...db.subscriptions[idx], status, updatedAt: now };
-  await writeAll(db);
-  return db.subscriptions[idx];
+
+export async function deleteSubscription(id: string): Promise<boolean> {
+  try {
+    // First check if the item exists
+    const existing = await getSubscriptionById(id);
+    if (!existing) {
+      return false;
+    }
+
+    await ddb.send(
+      new DeleteCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          userId: DEMO_USER_ID,
+          id,
+        },
+      })
+    );
+
+    return true;
+  } catch (error) {
+    console.error("Error deleting subscription:", error);
+    throw new Error("Failed to delete subscription from database");
+  }
 }

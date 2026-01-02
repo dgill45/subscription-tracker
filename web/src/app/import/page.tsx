@@ -42,8 +42,9 @@ function addDays(isoDate: string, days: number): string {
   }
 }
 
-function choosePeriod(cadence: Suggestion['cadence']): 'monthly' | 'annual' {
+function choosePeriod(cadence: Suggestion['cadence']): 'weekly' | 'monthly' | 'annual' {
   if (cadence === 'annual') return 'annual';
+  if (cadence === 'weekly') return 'weekly';
   return 'monthly';
 }
 
@@ -120,17 +121,47 @@ export default function ImportPage() {
   setStatusMsg('');
 
   try {
+    
+    const existingRes = await fetch('/api/subscriptions', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const existingJson = await existingRes.json();
+
+    const existingItems: Array<{ merchant: string }> = Array.isArray(existingJson.items)
+      ? existingJson.items
+      : [];
+
+    const existingMerchants = new Set(
+      existingItems.map((sub) =>
+        (sub.merchant || '').toLowerCase().trim()
+      )
+    );
+
+    let skipped = 0;
+    let created = 0;
+
     for (const sug of suggestions) {
       if (!selected[sug.merchant]) continue;
 
-      const nextBillDate = estimateNextBillDate(sug.lastChargeDate, sug.cadence);
+      const merchantName = (sug.displayName || sug.merchant || '').trim();
+      const merchantKey = merchantName.toLowerCase();
+
+      if (existingMerchants.has(merchantKey)) {
+        // already have this one, skip creating again
+        skipped += 1;
+        continue;
+      }
+
+      // figure out period and nextBillDate using cadence
       const period = choosePeriod(sug.cadence);
+      const nextBillDate = estimateNextBillDate(sug.lastChargeDate, sug.cadence);
 
       const newSub = {
-        merchant: sug.displayName || sug.merchant,
+        merchant: merchantName,
         amount: sug.averageAmount,
-        period,                // <-- now could be "monthly" or "annual"
-        nextBillDate,          // <-- now uses cadence to estimate
+        period, // 'monthly' | 'annual' (fits validateSubscriptionInput)
+        nextBillDate,
         notes: `Imported via CSV. cadence=${sug.cadence}`,
       };
 
@@ -143,10 +174,24 @@ export default function ImportPage() {
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
         console.error('Failed to create sub', newSub, errJson);
+        continue;
       }
+
+      existingMerchants.add(merchantKey);
+      created += 1;
     }
 
-    setStatusMsg('Selected subscriptions added ✅');
+    
+    if (created === 0 && skipped > 0) {
+      setStatusMsg(`No new subscriptions added (all duplicates).`);
+    } else if (created > 0 && skipped > 0) {
+      setStatusMsg(`${created} added, ${skipped} skipped (duplicates). ✅`);
+    } else if (created > 0 && skipped === 0) {
+      setStatusMsg(`${created} subscriptions added ✅`);
+    } else {
+      setStatusMsg(`Nothing selected.`);
+    }
+
   } catch (err: any) {
     console.error(err);
     setStatusMsg('Error adding subscriptions.');
