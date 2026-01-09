@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Card } from '@/components/Card';
+import { Button } from '@/components/Button';
 
 interface Suggestion {
   merchant: string;
@@ -16,6 +18,7 @@ interface Suggestion {
     description?: string;
   }[];
 }
+
 // helper for nextBillDate
 function addDays(isoDate: string, days: number): string {
   const d = new Date(isoDate + "T00:00:00Z");
@@ -28,7 +31,7 @@ function addDays(isoDate: string, days: number): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-  function estimateNextBillDate(lastChargeDate: string, cadence: Suggestion['cadence']) {
+function estimateNextBillDate(lastChargeDate: string, cadence: Suggestion['cadence']) {
   switch (cadence) {
     case 'weekly':
       return addDays(lastChargeDate, 7);
@@ -37,7 +40,6 @@ function addDays(isoDate: string, days: number): string {
     case 'annual':
       return addDays(lastChargeDate, 365);
     default:
-      // unknown? assume ~monthly
       return addDays(lastChargeDate, 30);
   }
 }
@@ -59,11 +61,10 @@ export default function ImportPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Simple guard: only allow .csv-ish mime or name
     if (
       !file.name.toLowerCase().endsWith('.csv') &&
       file.type !== 'text/csv' &&
-      file.type !== 'application/vnd.ms-excel' 
+      file.type !== 'application/vnd.ms-excel'
     ) {
       setStatusMsg('Please select a .csv file');
       return;
@@ -95,7 +96,6 @@ export default function ImportPage() {
 
       setSuggestions(data.suggestions || []);
 
-      // default all rows to checked
       const sel: Record<string, boolean> = {};
       (data.suggestions || []).forEach((s: Suggestion) => {
         sel[s.merchant] = true;
@@ -117,248 +117,228 @@ export default function ImportPage() {
   }
 
   async function handleAddSelected() {
-  setLoading(true);
-  setStatusMsg('');
+    setLoading(true);
+    setStatusMsg('');
 
-  try {
-    
-    const existingRes = await fetch('/api/subscriptions', {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const existingJson = await existingRes.json();
-
-    const existingItems: Array<{ merchant: string }> = Array.isArray(existingJson.items)
-      ? existingJson.items
-      : [];
-
-    const existingMerchants = new Set(
-      existingItems.map((sub) =>
-        (sub.merchant || '').toLowerCase().trim()
-      )
-    );
-
-    let skipped = 0;
-    let created = 0;
-
-    for (const sug of suggestions) {
-      if (!selected[sug.merchant]) continue;
-
-      const merchantName = (sug.displayName || sug.merchant || '').trim();
-      const merchantKey = merchantName.toLowerCase();
-
-      if (existingMerchants.has(merchantKey)) {
-        // already have this one, skip creating again
-        skipped += 1;
-        continue;
-      }
-
-      // figure out period and nextBillDate using cadence
-      const period = choosePeriod(sug.cadence);
-      const nextBillDate = estimateNextBillDate(sug.lastChargeDate, sug.cadence);
-
-      const newSub = {
-        merchant: merchantName,
-        amount: sug.averageAmount,
-        period, // 'monthly' | 'annual' (fits validateSubscriptionInput)
-        nextBillDate,
-        notes: `Imported via CSV. cadence=${sug.cadence}`,
-      };
-
-      const res = await fetch('/api/subscriptions', {
-        method: 'POST',
+    try {
+      const existingRes = await fetch('/api/subscriptions', {
+        method: 'GET',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newSub),
       });
+      const existingJson = await existingRes.json();
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        console.error('Failed to create sub', newSub, errJson);
-        continue;
+      const existingItems: Array<{ merchant: string }> = Array.isArray(existingJson.items)
+        ? existingJson.items
+        : [];
+
+      const existingMerchants = new Set(
+        existingItems.map((sub) =>
+          (sub.merchant || '').toLowerCase().trim()
+        )
+      );
+
+      let skipped = 0;
+      let created = 0;
+
+      for (const sug of suggestions) {
+        if (!selected[sug.merchant]) continue;
+
+        const merchantName = (sug.displayName || sug.merchant || '').trim();
+        const merchantKey = merchantName.toLowerCase();
+
+        if (existingMerchants.has(merchantKey)) {
+          skipped += 1;
+          continue;
+        }
+
+        const period = choosePeriod(sug.cadence);
+        const nextBillDate = estimateNextBillDate(sug.lastChargeDate, sug.cadence);
+
+        const newSub = {
+          merchant: merchantName,
+          amount: sug.averageAmount,
+          period,
+          nextBillDate,
+          notes: `Imported via CSV. cadence=${sug.cadence}`,
+        };
+
+        const res = await fetch('/api/subscriptions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newSub),
+        });
+
+        if (!res.ok) {
+          const errJson = await res.json().catch(() => ({}));
+          console.error('Failed to create sub', newSub, errJson);
+          continue;
+        }
+
+        existingMerchants.add(merchantKey);
+        created += 1;
       }
 
-      existingMerchants.add(merchantKey);
-      created += 1;
-    }
+      if (created === 0 && skipped > 0) {
+        setStatusMsg(`No new subscriptions added (all duplicates).`);
+      } else if (created > 0 && skipped > 0) {
+        setStatusMsg(`${created} added, ${skipped} skipped (duplicates).`);
+      } else if (created > 0 && skipped === 0) {
+        setStatusMsg(`${created} subscriptions added successfully!`);
+      } else {
+        setStatusMsg(`Nothing selected.`);
+      }
 
-    
-    if (created === 0 && skipped > 0) {
-      setStatusMsg(`No new subscriptions added (all duplicates).`);
-    } else if (created > 0 && skipped > 0) {
-      setStatusMsg(`${created} added, ${skipped} skipped (duplicates). ✅`);
-    } else if (created > 0 && skipped === 0) {
-      setStatusMsg(`${created} subscriptions added ✅`);
-    } else {
-      setStatusMsg(`Nothing selected.`);
+    } catch (err: any) {
+      console.error(err);
+      setStatusMsg('Error adding subscriptions.');
+    } finally {
+      setLoading(false);
     }
-
-  } catch (err: any) {
-    console.error(err);
-    setStatusMsg('Error adding subscriptions.');
-  } finally {
-    setLoading(false);
   }
-}
-
 
   return (
-    <main style={{ maxWidth: '900px', margin: '2rem auto', fontFamily: 'sans-serif' }}>
-      <h1 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1rem' }}>
-        Import Transactions
-      </h1>
-
-      <section
-        style={{
-          border: '1px solid #444',
-          borderRadius: '0.5rem',
-          padding: '1rem',
-          marginBottom: '1.5rem',
-        }}
-      >
-        <div style={{ marginBottom: '1rem' }}>
-            <label
-                htmlFor="csvfile"
-                style={{ display: 'block', fontWeight: 500, marginBottom: '0.5rem' }}
-            >
-                Upload CSV file:
-            </label>
-
-            <input
-                id="csvfile"
-                type="file"
-                accept=".csv,text/csv"
-                onChange={handleFileSelect}
-                style={{
-                display: 'block',
-                marginBottom: '0.5rem',
-                color: '#eee',
-                }}
-            />
-
-            <div style={{ fontSize: '0.8rem', color: '#999', lineHeight: 1.4 }}>
-                We’ll read the file and show recurring charges. You can still edit the text below before Analyze.
-            </div>
-        </div>
-
-        <label
-          htmlFor="csv"
-          style={{ display: 'block', fontWeight: 500, marginBottom: '0.5rem' }}
-        >
-          Paste CSV export (include header row):
-        </label>
-        <textarea
-          id="csv"
-          value={csvText}
-          onChange={(e) => setCsvText(e.target.value)}
-          placeholder={`Date,Description,Amount
-                        2025-09-14,SPOTIFY *12345,-9.99
-                        2025-10-14,SPOTIFY *12345,-9.99
-                        2025-10-03,NETFLIX.COM,-15.49
-                        `}
-          style={{
-            width: '100%',
-            minHeight: '150px',
-            fontFamily: 'monospace',
-            fontSize: '0.9rem',
-            padding: '0.5rem',
-            borderRadius: '0.25rem',
-            border: '1px solid #666',
-            backgroundColor: '#111',
-            color: '#eee',
-          }}
-        />
-
-        <button
-          onClick={handleAnalyze}
-          disabled={loading}
-          style={{
-            marginTop: '1rem',
-            backgroundColor: '#2563eb',
-            color: 'white',
-            padding: '0.5rem 1rem',
-            borderRadius: '0.5rem',
-            border: 'none',
-            fontWeight: 600,
-            cursor: 'pointer',
-            opacity: loading ? 0.6 : 1,
-          }}
-        >
-          {loading ? 'Analyzing…' : 'Analyze CSV'}
-        </button>
-      </section>
-
-      {statusMsg && (
-        <p style={{ marginBottom: '1rem', color: '#10b981', fontWeight: 500 }}>
-          {statusMsg}
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          Import Transactions
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">
+          Upload a CSV file or paste transaction data to detect recurring subscriptions
         </p>
+      </div>
+
+      {/* CSV Input Section */}
+      <Card title="Upload CSV">
+        <div className="space-y-4">
+          <div>
+            <label
+              htmlFor="csvfile"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            >
+              Upload CSV file:
+            </label>
+            <input
+              id="csvfile"
+              type="file"
+              accept=".csv,text/csv"
+              onChange={handleFileSelect}
+              className="block w-full text-sm text-gray-900 dark:text-gray-100 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900 dark:file:text-blue-300"
+            />
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              We'll read the file and show recurring charges. You can still edit the text below before analyzing.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="csv"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            >
+              Or paste CSV data (include header row):
+            </label>
+            <textarea
+              id="csv"
+              value={csvText}
+              onChange={(e) => setCsvText(e.target.value)}
+              placeholder="Date,Description,Amount
+2025-09-14,SPOTIFY *12345,-9.99
+2025-10-14,SPOTIFY *12345,-9.99
+2025-10-03,NETFLIX.COM,-15.49"
+              className="w-full min-h-[150px] px-3 py-2 font-mono text-sm border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <Button onClick={handleAnalyze} disabled={loading}>
+            {loading ? 'Analyzing…' : 'Analyze CSV'}
+          </Button>
+        </div>
+      </Card>
+
+      {/* Status Message */}
+      {statusMsg && (
+        <div className="rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">
+          <p className="text-sm text-blue-800 dark:text-blue-200 font-medium">
+            {statusMsg}
+          </p>
+        </div>
       )}
 
+      {/* Results Section */}
       {suggestions.length > 0 && (
-        <section
-          style={{
-            border: '1px solid #444',
-            borderRadius: '0.5rem',
-            padding: '1rem',
-            marginBottom: '2rem',
-            backgroundColor: '#1a1a1a',
-            color: '#eee',
-          }}
-        >
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1rem' }}>
-            Detected Recurring Charges
-          </h2>
-
-          <div style={{ overflowX: 'auto' }}>
-            <table
-              style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                fontSize: '0.9rem',
-              }}
-            >
+        <Card title="Detected Recurring Charges">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
               <thead>
-                <tr style={{ backgroundColor: '#2a2a2a' }}>
-                  <th style={thStyle}></th>
-                  <th style={thStyle}>Merchant</th>
-                  <th style={thStyle}>Avg $</th>
-                  <th style={thStyle}>Cadence</th>
-                  <th style={thStyle}>Last Charge</th>
-                  <th style={thStyle}>Samples</th>
+                <tr className="border-b border-gray-200 dark:border-gray-700">
+                  <th className="text-left py-3 px-3 font-semibold text-gray-700 dark:text-gray-300">
+                    Select
+                  </th>
+                  <th className="text-left py-3 px-3 font-semibold text-gray-700 dark:text-gray-300">
+                    Merchant
+                  </th>
+                  <th className="text-left py-3 px-3 font-semibold text-gray-700 dark:text-gray-300">
+                    Avg Amount
+                  </th>
+                  <th className="text-left py-3 px-3 font-semibold text-gray-700 dark:text-gray-300">
+                    Cadence
+                  </th>
+                  <th className="text-left py-3 px-3 font-semibold text-gray-700 dark:text-gray-300">
+                    Last Charge
+                  </th>
+                  <th className="text-left py-3 px-3 font-semibold text-gray-700 dark:text-gray-300">
+                    Sample Transactions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {suggestions.map((sug) => (
-                  <tr key={sug.merchant} style={{ borderTop: '1px solid #444' }}>
-                    <td style={tdStyleCentered}>
+                  <tr
+                    key={sug.merchant}
+                    className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                  >
+                    <td className="py-3 px-3 text-center">
                       <input
                         type="checkbox"
                         checked={!!selected[sug.merchant]}
                         onChange={() => toggleOne(sug.merchant)}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                       />
                     </td>
-                    <td style={tdStyle}>
-                      <div style={{ fontWeight: 600 }}>{sug.displayName}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#999' }}>
+                    <td className="py-3 px-3">
+                      <div className="font-semibold text-gray-900 dark:text-gray-100">
+                        {sug.displayName}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
                         ({sug.merchant})
                       </div>
                     </td>
-                    <td style={tdStyle}>${sug.averageAmount.toFixed(2)}</td>
-                    <td style={tdStyle}>{sug.cadence}</td>
-                    <td style={tdStyle}>{sug.lastChargeDate}</td>
-                    <td style={tdStyle}>
-                      {sug.sampleTransactions.slice(0, 3).map((t, idx) => (
-                        <div key={idx} style={{ marginBottom: '0.25rem' }}>
-                          <div>{t.date}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#999' }}>
-                            ${t.amount.toFixed(2)} – {t.merchantRaw}
+                    <td className="py-3 px-3 text-gray-900 dark:text-gray-100">
+                      ${sug.averageAmount.toFixed(2)}
+                    </td>
+                    <td className="py-3 px-3">
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                        {sug.cadence}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-gray-900 dark:text-gray-100">
+                      {sug.lastChargeDate}
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="space-y-1">
+                        {sug.sampleTransactions.slice(0, 3).map((t, idx) => (
+                          <div key={idx} className="text-xs">
+                            <div className="text-gray-900 dark:text-gray-100">{t.date}</div>
+                            <div className="text-gray-500 dark:text-gray-400">
+                              ${t.amount.toFixed(2)} – {t.merchantRaw}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                      {sug.sampleTransactions.length > 3 && (
-                        <div style={{ fontSize: '0.75rem', color: '#666' }}>
-                          +{sug.sampleTransactions.length - 3} more…
-                        </div>
-                      )}
+                        ))}
+                        {sug.sampleTransactions.length > 3 && (
+                          <div className="text-xs text-gray-400 dark:text-gray-500">
+                            +{sug.sampleTransactions.length - 3} more…
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -366,43 +346,13 @@ export default function ImportPage() {
             </table>
           </div>
 
-          <button
-            onClick={handleAddSelected}
-            disabled={loading}
-            style={{
-              marginTop: '1rem',
-              backgroundColor: '#10b981',
-              color: '#000',
-              padding: '0.5rem 1rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              fontWeight: 600,
-              cursor: 'pointer',
-              opacity: loading ? 0.6 : 1,
-            }}
-          >
-            {loading ? 'Saving…' : 'Add Selected Subscriptions'}
-          </button>
-        </section>
+          <div className="mt-4">
+            <Button onClick={handleAddSelected} disabled={loading}>
+              {loading ? 'Saving…' : 'Add Selected Subscriptions'}
+            </Button>
+          </div>
+        </Card>
       )}
-    </main>
+    </div>
   );
 }
-
-const thStyle: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '0.5rem',
-  borderBottom: '1px solid #444',
-  whiteSpace: 'nowrap',
-  fontWeight: 600,
-};
-
-const tdStyle: React.CSSProperties = {
-  verticalAlign: 'top',
-  padding: '0.5rem',
-};
-
-const tdStyleCentered: React.CSSProperties = {
-  ...tdStyle,
-  textAlign: 'center',
-};

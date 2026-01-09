@@ -22,7 +22,7 @@ export async function listSubscriptions(): Promise<Subscription[]> {
     const result = await ddb.send(
       new QueryCommand({
         TableName: TABLE_NAME,
-        KeyConditionExpression: "userId = :uid",
+        KeyConditionExpression: "userid = :uid",
         ExpressionAttributeValues: {
           ":uid": DEMO_USER_ID,
         },
@@ -59,7 +59,10 @@ export async function createSubscription(
     await ddb.send(
       new PutCommand({
         TableName: TABLE_NAME,
-        Item: item,
+        Item: {
+          ...item,
+          userid: item.userId, // Map to lowercase for DynamoDB
+        },
       })
     );
 
@@ -76,7 +79,7 @@ export async function getSubscriptionById(id: string): Promise<Subscription | nu
       new GetCommand({
         TableName: TABLE_NAME,
         Key: {
-          userId: DEMO_USER_ID,
+          userid: DEMO_USER_ID,
           id,
         },
       })
@@ -150,7 +153,7 @@ export async function updateSubscription(
       new UpdateCommand({
         TableName: TABLE_NAME,
         Key: {
-          userId: DEMO_USER_ID,
+          userid: DEMO_USER_ID,
           id,
         },
         UpdateExpression,
@@ -180,7 +183,7 @@ export async function deleteSubscription(id: string): Promise<boolean> {
       new DeleteCommand({
         TableName: TABLE_NAME,
         Key: {
-          userId: DEMO_USER_ID,
+          userid: DEMO_USER_ID,
           id,
         },
       })
