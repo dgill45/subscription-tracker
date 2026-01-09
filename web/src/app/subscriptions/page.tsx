@@ -4,68 +4,41 @@ import { computeTotals } from "@/lib/types";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { StatTile } from "@/components/StatTile";
-import { DeleteButton } from "@/components/DeleteButton";
-
+import { SubscriptionsTable } from "@/components/SubscriptionsTable";
 
 export default async function SubscriptionsPage() {
-const subs = await listSubscriptions();
-const totals = computeTotals(subs);
+  const subs = await listSubscriptions();
+  const totals = computeTotals(subs);
+  const activeSubs = subs.filter((s) => s.status === "active");
 
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Subscriptions</h1>
+        <Link href="/subscriptions/new">
+          <Button>Add subscription</Button>
+        </Link>
+      </div>
 
-return (
-<div className="space-y-6">
-<div className="flex items-center justify-between">
-<h1 className="text-2xl font-semibold">Subscriptions</h1>
-<Link href="/subscriptions/new">
-<Button>Add subscription</Button>
-</Link>
-</div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <StatTile
+          label="Monthly total"
+          value={totals.monthly.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+        />
+        <StatTile
+          label="Annualized"
+          value={totals.annual.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+        />
+        <StatTile label="Active subs" value={activeSubs.length} />
+      </div>
 
-
-<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-<StatTile label="Monthly total" value={totals.monthly.toLocaleString(undefined, { style: "currency", currency: "USD" })} />
-<StatTile label="Annualized" value={(totals.annual).toLocaleString(undefined, { style: "currency", currency: "USD" })} />
-<StatTile label="Active subs" value={subs.length} />
-</div>
-
-
-<Card title="Your subscriptions">
-  {subs.length === 0 ? (
-    <p className="text-sm text-gray-600 dark:text-gray-300">No subscriptions yet.</p>
-  ) : (
-    <div className="overflow-hidden rounded-md border text-gray-900 dark:text-gray-100">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800 text-left">
-          <tr>
-            <th className="px-3 py-2">Merchant</th>
-            <th className="px-3 py-2">Amount</th>
-            <th className="px-3 py-2">Period</th>
-            <th className="px-3 py-2">Next bill</th>
-            <th className="px-3 py-2">Status</th>
-            <th className="px-3 py-2">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {subs.map((s) => (
-            <tr key={s.id} className="border-t">
-              <td className="px-3 py-2">{s.merchant}</td>
-              <td className="px-3 py-2">
-                {s.amount.toLocaleString(undefined, { style: "currency", currency: "USD" })}
-              </td>
-              <td className="px-3 py-2">{s.period}</td>
-              <td className="px-3 py-2">{s.nextBillDate}</td>
-              <td className="px-3 py-2">{s.status}</td>
-              <td className="px-3 py-2 flex gap-2">
-                <a href={`/subscriptions/${s.id}/edit`} className="underline">Edit</a>
-                <DeleteButton id={s.id} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <Card title="Your subscriptions">
+        {subs.length === 0 ? (
+          <p className="text-sm text-gray-600 dark:text-gray-400">No subscriptions yet.</p>
+        ) : (
+          <SubscriptionsTable subscriptions={subs} />
+        )}
+      </Card>
     </div>
-  )}
-</Card>
-</div>
-);
+  );
 }
