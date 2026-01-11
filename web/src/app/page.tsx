@@ -1,12 +1,19 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { listSubscriptions } from "@/server/storage";
 import { computeTotals } from "@/lib/types";
 import { StatTile } from "@/components/StatTile";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
+import { auth } from "@/lib/auth";
 
 export default async function DashboardPage() {
-  const subscriptions = await listSubscriptions();
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/auth/signin");
+  }
+
+  const subscriptions = await listSubscriptions(session.user.id);
   const totals = computeTotals(subscriptions);
 
   // Get active subscriptions and sort by next bill date

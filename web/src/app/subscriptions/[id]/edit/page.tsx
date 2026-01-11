@@ -1,13 +1,19 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getSubscriptionById } from "@/server/storage";
 import { Card } from "@/components/Card";
 import { EditSubscriptionForm } from "@/components/EditSubscriptionForm";
+import { auth } from "@/lib/auth";
 
 export default async function EditSubPage(
-  { params }: { params: Promise<{ id: string }> } // 👈 accept a Promise for params
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;                   // 👈 await it
-  const sub = await getSubscriptionById(id);
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/auth/signin");
+  }
+
+  const { id } = await params;
+  const sub = await getSubscriptionById(session.user.id, id);
   if (!sub) return notFound();
 
   return (

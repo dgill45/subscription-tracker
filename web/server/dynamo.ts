@@ -16,5 +16,3 @@ const client = new DynamoDBClient({
 export const ddb = DynamoDBDocumentClient.from(client);
 
 export const TABLE_NAME = process.env.SUBSCRIPTIONS_TABLE || "Subscriptions";
-
-export const DEMO_USER_ID = "demo-user";

@@ -1,13 +1,20 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { listSubscriptions } from "@/server/storage";
 import { computeTotals } from "@/lib/types";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { StatTile } from "@/components/StatTile";
 import { SubscriptionsTable } from "@/components/SubscriptionsTable";
+import { auth } from "@/lib/auth";
 
 export default async function SubscriptionsPage() {
-  const subs = await listSubscriptions();
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/auth/signin");
+  }
+
+  const subs = await listSubscriptions(session.user.id);
   const totals = computeTotals(subs);
   const activeSubs = subs.filter((s) => s.status === "active");
 

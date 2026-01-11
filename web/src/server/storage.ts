@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { ddb, TABLE_NAME, DEMO_USER_ID } from "../../server/dynamo";
+import { ddb, TABLE_NAME } from "../../server/dynamo";
 import {
     PutCommand,
     QueryCommand,
@@ -17,14 +17,14 @@ import {
 }
 
 
-export async function listSubscriptions(): Promise<Subscription[]> {
+export async function listSubscriptions(userId: string): Promise<Subscription[]> {
   try {
     const result = await ddb.send(
       new QueryCommand({
         TableName: TABLE_NAME,
         KeyConditionExpression: "userid = :uid",
         ExpressionAttributeValues: {
-          ":uid": DEMO_USER_ID,
+          ":uid": userId,
         },
       })
     );
@@ -37,6 +37,7 @@ export async function listSubscriptions(): Promise<Subscription[]> {
 }
 
 export async function createSubscription(
+  userId: string,
   input: SubscriptionInput
 ): Promise<Subscription> {
   const id = randomUUID();
@@ -44,7 +45,7 @@ export async function createSubscription(
 
   const item: Subscription = {
     id,
-    userId: DEMO_USER_ID,
+    userId,
     merchant: input.merchant,
     amount: input.amount,
     period: input.period,
@@ -73,13 +74,13 @@ export async function createSubscription(
   }
 }
 
-export async function getSubscriptionById(id: string): Promise<Subscription | null> {
+export async function getSubscriptionById(userId: string, id: string): Promise<Subscription | null> {
   try {
     const res = await ddb.send(
       new GetCommand({
         TableName: TABLE_NAME,
         Key: {
-          userid: DEMO_USER_ID,
+          userid: userId,
           id,
         },
       })
@@ -93,6 +94,7 @@ export async function getSubscriptionById(id: string): Promise<Subscription | nu
 }
 
 export async function updateSubscription(
+  userId: string,
   id: string,
   updates: Partial<
     Pick<
@@ -129,7 +131,7 @@ export async function updateSubscription(
 
 
   if (Object.keys(updatePayload).length === 0) {
-    return await getSubscriptionById(id);
+    return await getSubscriptionById(userId, id);
   }
 
 
@@ -153,7 +155,7 @@ export async function updateSubscription(
       new UpdateCommand({
         TableName: TABLE_NAME,
         Key: {
-          userid: DEMO_USER_ID,
+          userid: userId,
           id,
         },
         UpdateExpression,
@@ -171,10 +173,10 @@ export async function updateSubscription(
 
 
 
-export async function deleteSubscription(id: string): Promise<boolean> {
+export async function deleteSubscription(userId: string, id: string): Promise<boolean> {
   try {
     // First check if the item exists
-    const existing = await getSubscriptionById(id);
+    const existing = await getSubscriptionById(userId, id);
     if (!existing) {
       return false;
     }
@@ -183,7 +185,7 @@ export async function deleteSubscription(id: string): Promise<boolean> {
       new DeleteCommand({
         TableName: TABLE_NAME,
         Key: {
-          userid: DEMO_USER_ID,
+          userid: userId,
           id,
         },
       })

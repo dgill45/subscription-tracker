@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 
 export function Navigation() {
   const pathname = usePathname();
+  const { data: session } = useSession();
 
   const isActive = (path: string) => {
     if (path === "/") {
@@ -18,6 +20,11 @@ export function Navigation() {
     { href: "/subscriptions", label: "Subscriptions" },
     { href: "/import", label: "Import" },
   ];
+
+  // Don't show navigation on auth pages
+  if (pathname.startsWith("/auth")) {
+    return null;
+  }
 
   return (
     <nav className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
@@ -48,6 +55,21 @@ export function Navigation() {
               </Link>
             ))}
           </div>
+
+          {/* User Info & Sign Out */}
+          {session?.user && (
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {session.user.email}
+              </span>
+              <button
+                onClick={() => signOut({ callbackUrl: "/auth/signin" })}
+                className="px-3 py-2 rounded-md text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+              >
+                Sign out
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </nav>
