@@ -124,7 +124,7 @@ export function SubscriptionsTable({ subscriptions }: SubscriptionsTableProps) {
           <select
             id="status"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
+            onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'canceled')}
             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">All</option>
@@ -141,7 +141,7 @@ export function SubscriptionsTable({ subscriptions }: SubscriptionsTableProps) {
           <select
             id="period"
             value={periodFilter}
-            onChange={(e) => setPeriodFilter(e.target.value as any)}
+            onChange={(e) => setPeriodFilter(e.target.value as 'all' | 'weekly' | 'monthly' | 'annual')}
             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">All</option>

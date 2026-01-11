@@ -17,6 +17,8 @@ export interface SubscriptionSuggestion {
   cadence: 'weekly' | 'monthly' | 'annual' | 'unknown';
   lastChargeDate: string;      // ISO yyyy-mm-dd
   sampleTransactions: Transaction[];
+  confidence: number;          // 0-100, likelihood this is a real subscription
+  confidenceReasons: string[]; // Why this score was assigned
 }
 
 // ---------------------------
@@ -199,6 +201,20 @@ export function detectRecurring(transactions: Transaction[]): SubscriptionSugges
 
       const displayName = bestDisplayName(cluster);
 
+      // Calculate confidence score
+      const confidenceResult = calculateConfidence(
+        merchant,
+        displayName,
+        cluster,
+        cadence,
+        avgAmount
+      );
+
+      // Only include suggestions with confidence >= 30%
+      if (confidenceResult.score < 30) {
+        continue;
+      }
+
       suggestions.push({
         merchant,
         displayName,
@@ -206,9 +222,14 @@ export function detectRecurring(transactions: Transaction[]): SubscriptionSugges
         cadence,
         lastChargeDate,
         sampleTransactions: cluster,
+        confidence: confidenceResult.score,
+        confidenceReasons: confidenceResult.reasons,
       });
     }
   }
+
+  // Sort by confidence (highest first)
+  suggestions.sort((a, b) => b.confidence - a.confidence);
 
   return suggestions;
 }
@@ -291,4 +312,124 @@ function titleCase(str: string): string {
     .split(' ')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');
+}
+
+// ---------------------------
+// 4. calculateConfidence
+// ---------------------------
+// Returns 0-100 score and reasons for the score
+
+interface ConfidenceResult {
+  score: number;
+  reasons: string[];
+}
+
+function calculateConfidence(
+  merchant: string,
+  displayName: string,
+  transactions: Transaction[],
+  cadence: 'weekly' | 'monthly' | 'annual' | 'unknown',
+  averageAmount: number
+): ConfidenceResult {
+  let score = 0;
+  const reasons: string[] = [];
+
+  // 1. Cadence Pattern (0-30 points)
+  if (cadence === 'monthly') {
+    score += 30;
+    reasons.push('Monthly billing pattern');
+  } else if (cadence === 'annual') {
+    score += 25;
+    reasons.push('Annual billing pattern');
+  } else if (cadence === 'weekly') {
+    score += 20;
+    reasons.push('Weekly billing pattern');
+  } else {
+    score += 5;
+    reasons.push('Irregular billing pattern');
+  }
+
+  // 2. Amount Consistency (0-25 points)
+  const amounts = transactions.map((t) => t.amount);
+  const avgAmt = amounts.reduce((sum, a) => sum + a, 0) / amounts.length;
+  const variance = amounts.reduce((sum, a) => sum + Math.pow(a - avgAmt, 2), 0) / amounts.length;
+  const stdDev = Math.sqrt(variance);
+
+  if (stdDev < 0.10) {
+    score += 25;
+    reasons.push('Exact same amount every time');
+  } else if (stdDev < 0.50) {
+    score += 20;
+    reasons.push('Very consistent amounts');
+  } else if (stdDev < 2.00) {
+    score += 10;
+    reasons.push('Similar amounts');
+  } else {
+    score += 0;
+    reasons.push('Variable amounts (may not be subscription)');
+  }
+
+  // 3. Merchant Name Patterns (0-20 points)
+  const subscriptionKeywords = [
+    'subscription', 'streaming', 'netflix', 'spotify', 'hulu', 'disney',
+    'prime', 'amazon prime', 'apple', 'icloud', 'adobe', 'microsoft',
+    'office', 'dropbox', 'github', 'zoom', 'slack', 'notion',
+    'membership', 'premium', 'pro', 'plus', 'software', 'cloud',
+    'hosting', 'domain', 'vpn', 'antivirus', 'gym', 'fitness'
+  ];
+
+  const merchantLower = merchant.toLowerCase();
+  const displayLower = displayName.toLowerCase();
+
+  const hasKeyword = subscriptionKeywords.some(
+    (keyword) => merchantLower.includes(keyword) || displayLower.includes(keyword)
+  );
+
+  if (hasKeyword) {
+    score += 20;
+    reasons.push('Known subscription service');
+  }
+
+  // 4. Amount Precision (0-15 points)
+  // Subscriptions often end in .99, .95, .00, or are whole numbers
+  const cents = Math.round((averageAmount % 1) * 100);
+  if (cents === 99 || cents === 95 || cents === 0) {
+    score += 15;
+    reasons.push('Subscription-style pricing');
+  } else if (cents % 5 === 0) {
+    score += 8;
+    reasons.push('Round pricing');
+  }
+
+  // 5. Typical Subscription Price Range (0-10 points)
+  if (averageAmount >= 5 && averageAmount <= 100) {
+    score += 10;
+    reasons.push('Typical subscription price range');
+  } else if (averageAmount >= 100 && averageAmount <= 500) {
+    score += 5;
+    reasons.push('Higher-tier subscription range');
+  } else if (averageAmount < 5) {
+    score -= 5;
+    reasons.push('Very low amount (may be fees)');
+  } else {
+    score -= 5;
+    reasons.push('Very high amount (unusual for subscription)');
+  }
+
+  // 6. Number of occurrences (bonus points)
+  if (transactions.length >= 6) {
+    score += 10;
+    reasons.push(`${transactions.length} charges found`);
+  } else if (transactions.length >= 4) {
+    score += 5;
+    reasons.push(`${transactions.length} charges found`);
+  } else if (transactions.length >= 3) {
+    score += 2;
+    reasons.push(`${transactions.length} charges found`);
+  }
+
+  // Ensure score is 0-100
+  score = Math.max(0, Math.min(100, score));
+
+  return { score, reasons };
 }

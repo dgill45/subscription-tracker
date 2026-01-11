@@ -10,6 +10,8 @@ interface Suggestion {
   averageAmount: number;
   cadence: 'weekly' | 'monthly' | 'annual' | 'unknown';
   lastChargeDate: string;
+  confidence: number;
+  confidenceReasons: string[];
   sampleTransactions: {
     date: string;
     merchantRaw: string;
@@ -96,12 +98,13 @@ export default function ImportPage() {
 
       setSuggestions(data.suggestions || []);
 
+      // Only auto-select items with confidence >= 70%
       const sel: Record<string, boolean> = {};
       (data.suggestions || []).forEach((s: Suggestion) => {
-        sel[s.merchant] = true;
+        sel[s.merchant] = s.confidence >= 70;
       });
       setSelected(sel);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       setStatusMsg('Network or server error.');
     } finally {
@@ -188,7 +191,7 @@ export default function ImportPage() {
         setStatusMsg(`Nothing selected.`);
       }
 
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       setStatusMsg('Error adding subscriptions.');
     } finally {
@@ -225,7 +228,7 @@ export default function ImportPage() {
               className="block w-full text-sm text-gray-900 dark:text-gray-100 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900 dark:file:text-blue-300"
             />
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              We'll read the file and show recurring charges. You can still edit the text below before analyzing.
+              We&apos;ll read the file and show recurring charges. You can still edit the text below before analyzing.
             </p>
           </div>
 
@@ -266,6 +269,9 @@ export default function ImportPage() {
       {/* Results Section */}
       {suggestions.length > 0 && (
         <Card title="Detected Recurring Charges">
+          <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+            Items with confidence ≥70% are auto-selected. Review all items before adding.
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -275,6 +281,9 @@ export default function ImportPage() {
                   </th>
                   <th className="text-left py-3 px-3 font-semibold text-gray-700 dark:text-gray-300">
                     Merchant
+                  </th>
+                  <th className="text-left py-3 px-3 font-semibold text-gray-700 dark:text-gray-300">
+                    Confidence
                   </th>
                   <th className="text-left py-3 px-3 font-semibold text-gray-700 dark:text-gray-300">
                     Avg Amount
@@ -291,57 +300,83 @@ export default function ImportPage() {
                 </tr>
               </thead>
               <tbody>
-                {suggestions.map((sug) => (
-                  <tr
-                    key={sug.merchant}
-                    className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                  >
-                    <td className="py-3 px-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={!!selected[sug.merchant]}
-                        onChange={() => toggleOne(sug.merchant)}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                      />
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="font-semibold text-gray-900 dark:text-gray-100">
-                        {sug.displayName}
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        ({sug.merchant})
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-gray-900 dark:text-gray-100">
-                      ${sug.averageAmount.toFixed(2)}
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
-                        {sug.cadence}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-gray-900 dark:text-gray-100">
-                      {sug.lastChargeDate}
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="space-y-1">
-                        {sug.sampleTransactions.slice(0, 3).map((t, idx) => (
-                          <div key={idx} className="text-xs">
-                            <div className="text-gray-900 dark:text-gray-100">{t.date}</div>
-                            <div className="text-gray-500 dark:text-gray-400">
-                              ${t.amount.toFixed(2)} – {t.merchantRaw}
+                {suggestions.map((sug) => {
+                  const confidenceColor =
+                    sug.confidence >= 70
+                      ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+                      : sug.confidence >= 50
+                      ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200'
+                      : 'bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200';
+
+                  return (
+                    <tr
+                      key={sug.merchant}
+                      className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                    >
+                      <td className="py-3 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={!!selected[sug.merchant]}
+                          onChange={() => toggleOne(sug.merchant)}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="font-semibold text-gray-900 dark:text-gray-100">
+                          {sug.displayName}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          ({sug.merchant})
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="flex flex-col gap-1">
+                          <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${confidenceColor}`}>
+                            {sug.confidence}%
+                          </span>
+                          <details className="text-xs text-gray-600 dark:text-gray-400">
+                            <summary className="cursor-pointer hover:text-gray-900 dark:hover:text-gray-200">
+                              Why?
+                            </summary>
+                            <ul className="mt-1 ml-2 space-y-0.5 list-disc list-inside">
+                              {sug.confidenceReasons.map((reason, idx) => (
+                                <li key={idx}>{reason}</li>
+                              ))}
+                            </ul>
+                          </details>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-gray-900 dark:text-gray-100">
+                        ${sug.averageAmount.toFixed(2)}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                          {sug.cadence}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-gray-900 dark:text-gray-100">
+                        {sug.lastChargeDate}
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="space-y-1">
+                          {sug.sampleTransactions.slice(0, 3).map((t, idx) => (
+                            <div key={idx} className="text-xs">
+                              <div className="text-gray-900 dark:text-gray-100">{t.date}</div>
+                              <div className="text-gray-500 dark:text-gray-400">
+                                ${t.amount.toFixed(2)} – {t.merchantRaw}
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                        {sug.sampleTransactions.length > 3 && (
-                          <div className="text-xs text-gray-400 dark:text-gray-500">
-                            +{sug.sampleTransactions.length - 3} more…
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          ))}
+                          {sug.sampleTransactions.length > 3 && (
+                            <div className="text-xs text-gray-400 dark:text-gray-500">
+                              +{sug.sampleTransactions.length - 3} more…
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
