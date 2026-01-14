@@ -1,0 +1,226 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: DynamoDB tables for Subscription Tracker application
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment name for resource naming
+
+  BillingMode:
+    Type: String
+    Default: PAY_PER_REQUEST
+    AllowedValues:
+      - PAY_PER_REQUEST
+      - PROVISIONED
+    Description: DynamoDB billing mode
+
+Resources:
+  # Subscriptions Table
+  # PK: userid (lowercase), SK: id
+  SubscriptionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Subscriptions-${Environment}'
+      BillingMode: !Ref BillingMode
+      AttributeDefinitions:
+        - AttributeName: userid
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userid
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Application
+          Value: SubscriptionTracker
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Auth Users Table (for NextAuth.js)
+  # Uses single-table design with pk/sk and GSI1
+  AuthUsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'AuthUsers-${Environment}'
+      BillingMode: !Ref BillingMode
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Application
+          Value: SubscriptionTracker
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Plaid Connections Table
+  # PK: userId, SK: id
+  # Stores bank account connections from Plaid
+  PlaidConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'PlaidConnections-${Environment}'
+      BillingMode: !Ref BillingMode
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: itemId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        # GSI for looking up connections by Plaid itemId (for webhooks)
+        - IndexName: ItemIdIndex
+          KeySchema:
+            - AttributeName: itemId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Application
+          Value: SubscriptionTracker
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Transactions Table
+  # PK: userId, SK: transactionId
+  # Stores transaction history from Plaid for analytics
+  TransactionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Transactions-${Environment}'
+      BillingMode: !Ref BillingMode
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: transactionId
+          AttributeType: S
+        - AttributeName: date
+          AttributeType: S
+        - AttributeName: accountId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: transactionId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        # GSI for querying transactions by date
+        - IndexName: DateIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: date
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        # GSI for querying transactions by account
+        - IndexName: AccountIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: accountId
+              KeyType: RANGE
+          Projection:
+            ProjectionType: KEYS_ONLY
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Application
+          Value: SubscriptionTracker
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  SubscriptionsTableName:
+    Description: Name of the Subscriptions table
+    Value: !Ref SubscriptionsTable
+    Export:
+      Name: !Sub '${Environment}-SubscriptionsTableName'
+
+  SubscriptionsTableArn:
+    Description: ARN of the Subscriptions table
+    Value: !GetAtt SubscriptionsTable.Arn
+    Export:
+      Name: !Sub '${Environment}-SubscriptionsTableArn'
+
+  AuthUsersTableName:
+    Description: Name of the Auth Users table
+    Value: !Ref AuthUsersTable
+    Export:
+      Name: !Sub '${Environment}-AuthUsersTableName'
+
+  AuthUsersTableArn:
+    Description: ARN of the Auth Users table
+    Value: !GetAtt AuthUsersTable.Arn
+    Export:
+      Name: !Sub '${Environment}-AuthUsersTableArn'
+
+  PlaidConnectionsTableName:
+    Description: Name of the Plaid Connections table
+    Value: !Ref PlaidConnectionsTable
+    Export:
+      Name: !Sub '${Environment}-PlaidConnectionsTableName'
+
+  PlaidConnectionsTableArn:
+    Description: ARN of the Plaid Connections table
+    Value: !GetAtt PlaidConnectionsTable.Arn
+    Export:
+      Name: !Sub '${Environment}-PlaidConnectionsTableArn'
+
+  TransactionsTableName:
+    Description: Name of the Transactions table
+    Value: !Ref TransactionsTable
+    Export:
+      Name: !Sub '${Environment}-TransactionsTableName'
+
+  TransactionsTableArn:
+    Description: ARN of the Transactions table
+    Value: !GetAtt TransactionsTable.Arn
+    Export:
+      Name: !Sub '${Environment}-TransactionsTableArn'
+
+  EnvironmentVariables:
+    Description: Environment variables to add to .env.local
+    Value: !Sub |
+      SUBSCRIPTIONS_TABLE=Subscriptions-${Environment}
+      AUTH_DYNAMODB_TABLE=AuthUsers-${Environment}
+      PLAID_CONNECTIONS_TABLE=PlaidConnections-${Environment}
+      TRANSACTIONS_TABLE=Transactions-${Environment}
