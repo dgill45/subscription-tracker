@@ -1,11 +1,29 @@
 import { NextResponse } from "next/server";
-import { createUserWithPassword } from "@/server/userAuth";
+import { createUserWithPassword, sendEmailVerification } from "@/server/userAuth";
+import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
+    // Rate limiting
+    const clientId = getClientIdentifier(request);
+    const rateLimit = checkRateLimit(`register:${clientId}`, RATE_LIMITS.register);
+
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: `Too many registration attempts. Please try again in ${rateLimit.resetIn} seconds.` },
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": String(rateLimit.resetIn),
+          },
+        }
+      );
+    }
+
     const body = await request.json();
     const { email, password, name } = body;
 
@@ -43,6 +61,14 @@ export async function POST(request: Request) {
     // Create user
     const user = await createUserWithPassword(email, password, name);
 
+    // Send verification email
+    try {
+      await sendEmailVerification(user.email);
+    } catch (emailError) {
+      console.error("Failed to send verification email:", emailError);
+      // Don't fail registration if email fails - user can request resend
+    }
+
     return NextResponse.json({
       success: true,
       user: {
@@ -50,6 +76,7 @@ export async function POST(request: Request) {
         email: user.email,
         name: user.name,
       },
+      message: "Account created. Please check your email to verify your account.",
     });
   } catch (error) {
     console.error("Registration error:", error);

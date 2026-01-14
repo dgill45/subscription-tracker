@@ -55,6 +55,7 @@ async function findUserByEmail(email: string) {
     email: item.email,
     name: item.name,
     passwordHash: item.passwordHash,
+    emailVerified: item.emailVerified,
   };
 }
 
@@ -100,12 +101,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             return null;
           }
 
+          // Check if email is verified
+          if (!user.emailVerified) {
+            throw new Error("EMAIL_NOT_VERIFIED");
+          }
+
           return {
             id: user.id,
             email: user.email,
             name: user.name,
           };
         } catch (error) {
+          // Re-throw EMAIL_NOT_VERIFIED error so it can be handled by the client
+          if (error instanceof Error && error.message === "EMAIL_NOT_VERIFIED") {
+            throw error;
+          }
           console.error("Auth error:", error);
           return null;
         }

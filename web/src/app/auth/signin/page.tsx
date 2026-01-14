@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-export default function SignInPage() {
+function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const registered = searchParams.get("registered");
+  const verified = searchParams.get("verified");
   const callbackUrl = searchParams.get("callbackUrl") || "/";
 
   const [email, setEmail] = useState("");
@@ -16,10 +17,15 @@ export default function SignInPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showMagicLink, setShowMagicLink] = useState(false);
+  const [showResendVerification, setShowResendVerification] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
 
   async function handleCredentialsSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setShowResendVerification(false);
+    setResendSuccess(false);
     setLoading(true);
 
     try {
@@ -30,7 +36,13 @@ export default function SignInPage() {
       });
 
       if (result?.error) {
-        setError("Invalid email or password");
+        // Check if error is about unverified email
+        if (result.error.includes("EMAIL_NOT_VERIFIED") || result.error.includes("email")) {
+          setError("Please verify your email before signing in.");
+          setShowResendVerification(true);
+        } else {
+          setError("Invalid email or password");
+        }
       } else {
         router.push(callbackUrl);
         router.refresh();
@@ -40,6 +52,30 @@ export default function SignInPage() {
       setError("An error occurred. Please try again.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResendVerification() {
+    setResendLoading(true);
+    try {
+      const response = await fetch("/api/auth/verify-email", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      if (response.ok) {
+        setResendSuccess(true);
+        setShowResendVerification(false);
+      } else {
+        const data = await response.json();
+        setError(data.error || "Failed to send verification email");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Failed to send verification email");
+    } finally {
+      setResendLoading(false);
     }
   }
 
@@ -77,7 +113,23 @@ export default function SignInPage() {
         {registered && (
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
             <p className="text-sm text-green-800 dark:text-green-200">
-              Account created successfully! Please sign in.
+              Account created! Please check your email to verify your account before signing in.
+            </p>
+          </div>
+        )}
+
+        {verified && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <p className="text-sm text-green-800 dark:text-green-200">
+              Email verified successfully! You can now sign in.
+            </p>
+          </div>
+        )}
+
+        {resendSuccess && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <p className="text-sm text-green-800 dark:text-green-200">
+              Verification email sent! Please check your inbox.
             </p>
           </div>
         )}
@@ -85,6 +137,16 @@ export default function SignInPage() {
         {error && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
             <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+            {showResendVerification && (
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={resendLoading}
+                className="mt-2 text-sm text-red-700 dark:text-red-300 underline hover:no-underline disabled:opacity-50"
+              >
+                {resendLoading ? "Sending..." : "Resend verification email"}
+              </button>
+            )}
           </div>
         )}
 
@@ -139,13 +201,21 @@ export default function SignInPage() {
               {loading ? "Signing in..." : "Sign in"}
             </button>
 
-            <button
-              type="button"
-              onClick={() => setShowMagicLink(true)}
-              className="w-full text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-            >
-              Forgot password? Sign in with magic link
-            </button>
+            <div className="flex justify-between text-sm">
+              <Link
+                href="/auth/forgot-password"
+                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+              >
+                Forgot password?
+              </Link>
+              <button
+                type="button"
+                onClick={() => setShowMagicLink(true)}
+                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+              >
+                Sign in with magic link
+              </button>
+            </div>
           </form>
         ) : (
           /* Magic Link Form */
@@ -267,5 +337,19 @@ export default function SignInPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+          <div className="text-gray-600 dark:text-gray-400">Loading...</div>
+        </div>
+      }
+    >
+      <SignInForm />
+    </Suspense>
   );
 }
