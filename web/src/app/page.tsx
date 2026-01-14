@@ -6,6 +6,7 @@ import { StatTile } from "@/components/StatTile";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { auth } from "@/lib/auth";
+import { BankConnectionSection } from "@/components/BankConnectionSection";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -78,6 +79,11 @@ export default async function DashboardPage() {
             <Button>View All Subscriptions</Button>
           </Link>
         </div>
+      </Card>
+
+      {/* Bank Connections */}
+      <Card>
+        <BankConnectionSection />
       </Card>
 
       {/* Upcoming Bills */}

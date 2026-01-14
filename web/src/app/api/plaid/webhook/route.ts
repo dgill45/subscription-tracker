@@ -3,11 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { plaidClient } from "@/lib/plaid";
-import {
-  listPlaidConnections,
-  updatePlaidConnection,
-  getPlaidConnectionByItemId,
-} from "@/server/plaidStorage";
+import { updatePlaidConnection } from "@/server/plaidStorage";
 import {
   batchCreateTransactions,
   TransactionInput,
@@ -229,7 +225,8 @@ async function syncTransactionsFromWebhook(
 
 // Helper to find connection by itemId across all users
 // In production, use a GSI on itemId
-async function findConnectionByItemId(itemId: string): Promise<{
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function findConnectionByItemId(_itemId: string): Promise<{
   userId: string;
   id: string;
   accessToken: string;

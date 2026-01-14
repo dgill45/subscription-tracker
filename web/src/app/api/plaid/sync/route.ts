@@ -186,7 +186,7 @@ async function syncConnectionTransactions(
   );
 
   // Batch create/update transactions
-  const { created, failed } = await batchCreateTransactions(
+  const { failed } = await batchCreateTransactions(
     userId,
     transactionInputs
   );
