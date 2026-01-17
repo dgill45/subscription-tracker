@@ -154,6 +154,33 @@ export async function getPlaidConnectionByItemId(
   }
 }
 
+/**
+ * Find a Plaid connection by itemId using the ItemIdIndex GSI.
+ * Used by webhooks where we only have the itemId from Plaid.
+ */
+export async function findPlaidConnectionByItemId(
+  itemId: string
+): Promise<PlaidConnection | null> {
+  try {
+    const result = await ddb.send(
+      new QueryCommand({
+        TableName: PLAID_CONNECTIONS_TABLE,
+        IndexName: "ItemIdIndex",
+        KeyConditionExpression: "itemId = :itemId",
+        ExpressionAttributeValues: {
+          ":itemId": itemId,
+        },
+      })
+    );
+
+    const items = result.Items as PlaidConnection[];
+    return items.length > 0 ? items[0] : null;
+  } catch (error) {
+    console.error("Error finding Plaid connection by item ID:", error);
+    throw new Error("Failed to find Plaid connection from database");
+  }
+}
+
 export async function updatePlaidConnection(
   userId: string,
   id: string,

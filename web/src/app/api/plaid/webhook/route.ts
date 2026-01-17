@@ -3,7 +3,10 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { plaidClient } from "@/lib/plaid";
-import { updatePlaidConnection } from "@/server/plaidStorage";
+import {
+  updatePlaidConnection,
+  findPlaidConnectionByItemId,
+} from "@/server/plaidStorage";
 import {
   batchCreateTransactions,
   TransactionInput,
@@ -44,10 +47,8 @@ export async function POST(req: NextRequest) {
       itemId: body.item_id,
     });
 
-    // Find the connection by item_id
-    // Note: In production, you'd want a GSI on itemId for efficient lookup
-    // For now, we need to find the user who owns this item
-    const connection = await findConnectionByItemId(body.item_id);
+    // Find the connection by item_id using the ItemIdIndex GSI
+    const connection = await findPlaidConnectionByItemId(body.item_id);
 
     if (!connection) {
       console.warn(`No connection found for item ${body.item_id}`);
@@ -221,35 +222,6 @@ async function syncTransactionsFromWebhook(
   console.log(
     `Webhook sync complete: ${added.length} added, ${modified.length} modified, ${removed.length} removed`
   );
-}
-
-// Helper to find connection by itemId across all users
-// In production, use a GSI on itemId
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function findConnectionByItemId(_itemId: string): Promise<{
-  userId: string;
-  id: string;
-  accessToken: string;
-  cursor: string | null;
-  itemId: string;
-} | null> {
-  // This is a simplified approach - in production you'd use a GSI
-  // For now, we'll need to scan or have a separate lookup table
-  // This is a placeholder that works for single-user or dev scenarios
-
-  // In a real implementation, you would:
-  // 1. Create a GSI on the PlaidConnections table with itemId as the partition key
-  // 2. Query that GSI directly
-
-  // For now, we'll log a warning and return null
-  // The proper implementation would require a DynamoDB scan or GSI
-  console.warn(
-    "findConnectionByItemId: Production implementation requires GSI on itemId"
-  );
-
-  // Temporary: Try to find in known users (this won't scale)
-  // You should implement proper GSI lookup
-  return null;
 }
 
 // GET endpoint to verify webhook URL is accessible
