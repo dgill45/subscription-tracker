@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { getTransactionsForAnalysis } from "@/server/transactionStorage";
 import {
   detectRecurring,
@@ -10,9 +11,6 @@ import {
 } from "@/lib/importUtils";
 import { listSubscriptions } from "@/server/storage";
 import { normalizeMerchant } from "@/lib/importUtils";
-
-// Demo user ID (same as used elsewhere in the app)
-const DEMO_USER_ID = "demo-user";
 
 export interface AnalyzeResponse {
   suggestions: SubscriptionSuggestion[];
@@ -30,12 +28,18 @@ export interface AnalyzeResponse {
  */
 export async function GET(req: NextRequest) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { searchParams } = new URL(req.url);
     const months = parseInt(searchParams.get("months") || "6", 10);
     const includeExisting = searchParams.get("includeExisting") === "true";
 
     // Fetch transactions formatted for analysis
-    const rawTransactions = await getTransactionsForAnalysis(DEMO_USER_ID, {
+    const rawTransactions = await getTransactionsForAnalysis(userId, {
       months,
     });
 
@@ -60,7 +64,7 @@ export async function GET(req: NextRequest) {
     let suggestions = detectRecurring(transactions);
 
     // Get existing subscriptions to filter out duplicates
-    const existingSubscriptions = await listSubscriptions(DEMO_USER_ID);
+    const existingSubscriptions = await listSubscriptions(userId);
     const existingMerchants = existingSubscriptions.map((s) =>
       normalizeMerchant(s.merchant).toLowerCase()
     );
