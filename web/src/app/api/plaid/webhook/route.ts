@@ -4,6 +4,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { plaidClient } from "@/lib/plaid";
 import {
+  verifyPlaidWebhook,
+  isWebhookVerificationEnabled,
+} from "@/lib/plaidWebhookVerify";
+import {
   updatePlaidConnection,
   findPlaidConnectionByItemId,
 } from "@/server/plaidStorage";
@@ -39,7 +43,25 @@ interface PlaidWebhookBody {
 
 export async function POST(req: NextRequest) {
   try {
-    const body: PlaidWebhookBody = await req.json();
+    // Get raw body for signature verification
+    const rawBody = await req.text();
+
+    // Verify webhook signature if enabled
+    if (isWebhookVerificationEnabled()) {
+      const verificationHeader = req.headers.get("Plaid-Verification");
+
+      try {
+        await verifyPlaidWebhook(rawBody, verificationHeader);
+      } catch (verifyError) {
+        console.error("Webhook verification failed:", verifyError);
+        return NextResponse.json(
+          { error: "Webhook verification failed" },
+          { status: 401 }
+        );
+      }
+    }
+
+    const body: PlaidWebhookBody = JSON.parse(rawBody);
 
     console.log("Received Plaid webhook:", {
       type: body.webhook_type,

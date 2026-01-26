@@ -9,13 +9,14 @@ import {
   GetCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { PLAID_CONNECTIONS_TABLE } from "@/lib/plaid";
+import { encryptAccessToken, decryptAccessToken } from "@/lib/kms";
 
 // Plaid connection stored for each user
 export interface PlaidConnection {
   id: string;
   userId: string;
   itemId: string; // Plaid item ID
-  accessToken: string; // Plaid access token (encrypted in production)
+  accessToken: string; // Plaid access token (encrypted at rest with KMS)
   institutionId: string;
   institutionName: string;
   accounts: PlaidAccountInfo[];
@@ -50,6 +51,28 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+/**
+ * Decrypt the access token in a PlaidConnection.
+ * Handles both encrypted and legacy unencrypted tokens.
+ */
+async function decryptConnection(
+  connection: PlaidConnection
+): Promise<PlaidConnection> {
+  return {
+    ...connection,
+    accessToken: await decryptAccessToken(connection.accessToken),
+  };
+}
+
+/**
+ * Decrypt access tokens for multiple connections.
+ */
+async function decryptConnections(
+  connections: PlaidConnection[]
+): Promise<PlaidConnection[]> {
+  return Promise.all(connections.map(decryptConnection));
+}
+
 export async function listPlaidConnections(userId: string): Promise<PlaidConnection[]> {
   try {
     const result = await ddb.send(
@@ -62,7 +85,8 @@ export async function listPlaidConnections(userId: string): Promise<PlaidConnect
       })
     );
 
-    return (result.Items || []) as PlaidConnection[];
+    const connections = (result.Items || []) as PlaidConnection[];
+    return decryptConnections(connections);
   } catch (error) {
     console.error("Error listing Plaid connections:", error);
     throw new Error("Failed to list Plaid connections from database");
@@ -76,11 +100,14 @@ export async function createPlaidConnection(
   const id = randomUUID();
   const timestamp = nowIso();
 
+  // Encrypt the access token before storing
+  const encryptedToken = await encryptAccessToken(input.accessToken);
+
   const item: PlaidConnection = {
     id,
     userId,
     itemId: input.itemId,
-    accessToken: input.accessToken,
+    accessToken: encryptedToken,
     institutionId: input.institutionId,
     institutionName: input.institutionName,
     accounts: input.accounts,
@@ -100,7 +127,11 @@ export async function createPlaidConnection(
       })
     );
 
-    return item;
+    // Return with decrypted token for immediate use
+    return {
+      ...item,
+      accessToken: input.accessToken,
+    };
   } catch (error) {
     console.error("Error creating Plaid connection:", error);
     throw new Error("Failed to create Plaid connection in database");
@@ -122,7 +153,11 @@ export async function getPlaidConnectionById(
       })
     );
 
-    return (result.Item as PlaidConnection) || null;
+    if (!result.Item) {
+      return null;
+    }
+
+    return decryptConnection(result.Item as PlaidConnection);
   } catch (error) {
     console.error("Error getting Plaid connection by id:", error);
     throw new Error("Failed to retrieve Plaid connection from database");
@@ -147,7 +182,11 @@ export async function getPlaidConnectionByItemId(
     );
 
     const items = result.Items as PlaidConnection[];
-    return items.length > 0 ? items[0] : null;
+    if (items.length === 0) {
+      return null;
+    }
+
+    return decryptConnection(items[0]);
   } catch (error) {
     console.error("Error getting Plaid connection by item ID:", error);
     throw new Error("Failed to retrieve Plaid connection from database");
@@ -174,7 +213,11 @@ export async function findPlaidConnectionByItemId(
     );
 
     const items = result.Items as PlaidConnection[];
-    return items.length > 0 ? items[0] : null;
+    if (items.length === 0) {
+      return null;
+    }
+
+    return decryptConnection(items[0]);
   } catch (error) {
     console.error("Error finding Plaid connection by item ID:", error);
     throw new Error("Failed to find Plaid connection from database");
@@ -237,7 +280,11 @@ export async function updatePlaidConnection(
       })
     );
 
-    return (result.Attributes as PlaidConnection) || null;
+    if (!result.Attributes) {
+      return null;
+    }
+
+    return decryptConnection(result.Attributes as PlaidConnection);
   } catch (error) {
     console.error("Error updating Plaid connection:", error);
     throw new Error("Failed to update Plaid connection in database");
