@@ -6,7 +6,8 @@ export type SubStatus = "active" | "canceled";
 
 export interface Subscription {
 id: string;
-userId: string; // placeholder until Cognito; using "demo-user" for now
+userId: string; // derived from authenticated session (NextAuth)
+userid?: string; // for DynamoDB PK(legacy naming)
 merchant: string;
 amount: number; // positive, USD for now
 period: Period;

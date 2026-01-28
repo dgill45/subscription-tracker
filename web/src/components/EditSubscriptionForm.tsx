@@ -32,7 +32,9 @@ export function EditSubscriptionForm({ initial }: { initial: Subscription }) {
     setLoading(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j?.error || "Failed to update");
+      setError(j?.error
+    ? `${j.error}${j.details ? `: ${j.details}` : ""}`
+    : "Failed to update");
       return;
     }
     router.push("/subscriptions");

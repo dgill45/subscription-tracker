@@ -62,7 +62,7 @@ export async function createSubscription(
         TableName: TABLE_NAME,
         Item: {
           ...item,
-          userid: item.userId, // Map to lowercase for DynamoDB
+          userid: userId, // Map to lowercase for DynamoDB
         },
       })
     );
@@ -104,20 +104,18 @@ export async function updateSubscription(
       | "period"
       | "nextBillDate"
       | "notes"
-      | "status"
     >
   >
 ): Promise<Subscription | null> {
 
   const allowedKeys: Array<
-    "merchant" | "amount" | "period" | "nextBillDate" | "notes" | "status"
+    "merchant" | "amount" | "period" | "nextBillDate" | "notes" 
   > = [
     "merchant",
     "amount",
     "period",
     "nextBillDate",
     "notes",
-    "status",
   ];
 
   // Build an object of only the fields that are actually being updated

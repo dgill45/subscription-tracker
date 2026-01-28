@@ -226,6 +226,69 @@ export async function deleteTransaction(
   }
 }
 
+export async function batchDeleteTransactions(
+  userId: string,
+  transactionIds: string[]
+): Promise<{ deleted: number; failed: number }> {
+  if (transactionIds.length === 0) {
+    return { deleted: 0, failed: 0 };
+  }
+
+  let deleted = 0;
+  let failed = 0;
+
+  // DynamoDB BatchWrite supports max 25 items per request
+  const batches: string[][] = [];
+  for (let i = 0; i < transactionIds.length; i += 25) {
+    batches.push(transactionIds.slice(i, i + 25));
+  }
+
+  for (const batch of batches) {
+    const deleteRequests = batch.map((transactionId) => ({
+      DeleteRequest: {
+        Key: {
+          userId,
+          transactionId,
+        },
+      },
+    }));
+
+    try {
+      const result = await ddb.send(
+        new BatchWriteCommand({
+          RequestItems: {
+            [TRANSACTIONS_TABLE]: deleteRequests,
+          },
+        })
+      );
+
+      // Handle unprocessed items
+      const unprocessed =
+        result.UnprocessedItems?.[TRANSACTIONS_TABLE]?.length || 0;
+      if (unprocessed > 0) {
+        console.warn(
+          `batchDeleteTransactions: ${unprocessed} items unprocessed in batch`,
+          {
+            unprocessedIds: batch.slice(-unprocessed),
+          }
+        );
+      }
+      deleted += batch.length - unprocessed;
+      failed += unprocessed;
+    } catch (error) {
+      console.error("Error batch deleting transactions:", {
+        error,
+        batchSize: batch.length,
+        transactionIds: batch,
+      });
+      failed += batch.length;
+    }
+  }
+
+  console.log(`batchDeleteTransactions complete: ${deleted} deleted, ${failed} failed`);
+  return { deleted, failed };
+}
+
 export async function deleteTransactionsByItemId(
   userId: string,
   itemId: string

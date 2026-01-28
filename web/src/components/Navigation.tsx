@@ -18,8 +18,6 @@ export function Navigation() {
   const navLinks = [
     { href: "/", label: "Dashboard" },
     { href: "/subscriptions", label: "Subscriptions" },
-    { href: "/analyze", label: "Detect" },
-    { href: "/import", label: "Import" },
   ];
 
   // Don't show navigation on auth pages
