@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSubscriptionById, updateSubscription, deleteSubscription } from "@/server/storage";
 import { auth } from "@/lib/auth";
 
-type Ctx = { params: { id: string } };
+type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Ctx) {
   const session = await auth();
@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = await params;
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
 
   const sub = await getSubscriptionById(session.user.id, id);
@@ -27,7 +27,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = await params;
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
 
   const body = await req.json().catch(() => null);
@@ -43,7 +43,6 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: "amount must be positive" }, { status: 400 });
   }
 
-  // Optional: basic date validation
   if ("nextBillDate" in patch) {
     const d = new Date(String(patch.nextBillDate));
     if (Number.isNaN(d.getTime())) {
@@ -62,7 +61,7 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = await params;
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
 
   const ok = await deleteSubscription(session.user.id, id);
