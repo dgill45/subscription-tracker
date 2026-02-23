@@ -1,7 +1,8 @@
 import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
-import GitHub from "next-auth/providers/github";
-import Resend from "next-auth/providers/resend";
+// OAuth providers disabled for MVP - re-enable after deployment
+// import Google from "next-auth/providers/google";
+// import GitHub from "next-auth/providers/github";
+// import Resend from "next-auth/providers/resend";
 import Credentials from "next-auth/providers/credentials";
 import { DynamoDBAdapter } from "@auth/dynamodb-adapter";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
@@ -67,18 +68,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     tableName: TABLE_NAME,
   }),
   providers: [
-    Google({
-      clientId: process.env.AUTH_GOOGLE_ID,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET,
-    }),
-    GitHub({
-      clientId: process.env.AUTH_GITHUB_ID,
-      clientSecret: process.env.AUTH_GITHUB_SECRET,
-    }),
-    Resend({
-      apiKey: process.env.AUTH_RESEND_KEY,
-      from: process.env.AUTH_EMAIL_FROM || "noreply@example.com",
-    }),
+    // OAuth providers disabled for MVP - re-enable after deployment
+    // Google({
+    //   clientId: process.env.AUTH_GOOGLE_ID,
+    //   clientSecret: process.env.AUTH_GOOGLE_SECRET,
+    // }),
+    // GitHub({
+    //   clientId: process.env.AUTH_GITHUB_ID,
+    //   clientSecret: process.env.AUTH_GITHUB_SECRET,
+    // }),
+    // Resend({
+    //   apiKey: process.env.AUTH_RESEND_KEY,
+    //   from: process.env.AUTH_EMAIL_FROM || "noreply@example.com",
+    // }),
     Credentials({
       name: "credentials",
       credentials: {
@@ -104,10 +106,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             return null;
           }
 
-          // Check if email is verified
-          if (!user.emailVerified) {
-            throw new Error("EMAIL_NOT_VERIFIED");
-          }
+          // Email verification disabled for MVP
+          // if (!user.emailVerified) {
+          //   throw new Error("EMAIL_NOT_VERIFIED");
+          // }
 
           return {
             id: user.id,

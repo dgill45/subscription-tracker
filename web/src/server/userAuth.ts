@@ -3,11 +3,15 @@ import { randomUUID, randomBytes, createHash } from "crypto";
 import bcrypt from "bcryptjs";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { DynamoDB } from "@aws-sdk/client-dynamodb";
-import { Resend } from "resend";
+// Resend disabled for MVP - re-enable after deployment
+// import { Resend } from "resend";
 
-const resend = new Resend(process.env.AUTH_RESEND_KEY);
+// const resend = new Resend(process.env.AUTH_RESEND_KEY);
 const EMAIL_FROM = process.env.AUTH_EMAIL_FROM || "noreply@example.com";
 const APP_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
+
+// Email sending disabled for MVP
+const RESEND_ENABLED = false;
 
 const ACCESS_KEY_ID = process.env.APP_AWS_ACCESS_KEY_ID;
 const SECRET_ACCESS_KEY = process.env.APP_AWS_SECRET_ACCESS_KEY;
@@ -331,6 +335,12 @@ async function deleteTokensForEmail(
  * Request a password reset - generates token and sends email
  */
 export async function requestPasswordReset(email: string): Promise<boolean> {
+  // Email disabled for MVP
+  if (!RESEND_ENABLED) {
+    console.warn("Password reset email disabled for MVP");
+    return true;
+  }
+
   try {
     // Check if user exists with password
     const user = await findUserByEmail(email);
@@ -346,30 +356,9 @@ export async function requestPasswordReset(email: string): Promise<boolean> {
     const { token, tokenHash } = generateToken();
     await storeToken(email, tokenHash, "password_reset");
 
-    // Send email
-    const resetUrl = `${APP_URL}/auth/reset-password?token=${token}`;
-
-    await resend.emails.send({
-      from: EMAIL_FROM,
-      to: email,
-      subject: "Reset your SubTracker password",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #1a1a1a;">Reset Your Password</h1>
-          <p>You requested to reset your password for SubTracker.</p>
-          <p>Click the button below to set a new password:</p>
-          <a href="${resetUrl}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">
-            Reset Password
-          </a>
-          <p style="color: #666; font-size: 14px;">
-            This link will expire in ${TOKEN_EXPIRY_HOURS} hours.
-          </p>
-          <p style="color: #666; font-size: 14px;">
-            If you didn't request this, you can safely ignore this email.
-          </p>
-        </div>
-      `,
-    });
+    // Send email - disabled for MVP
+    // const resetUrl = `${APP_URL}/auth/reset-password?token=${token}`;
+    // await resend.emails.send({ ... });
 
     return true;
   } catch (error) {
@@ -430,6 +419,12 @@ export async function resetPassword(token: string, newPassword: string): Promise
  * Send email verification
  */
 export async function sendEmailVerification(email: string): Promise<boolean> {
+  // Email disabled for MVP
+  if (!RESEND_ENABLED) {
+    console.warn("Email verification disabled for MVP");
+    return true;
+  }
+
   try {
     // Delete any existing verification tokens for this email
     await deleteTokensForEmail(email, "email_verification");
@@ -438,29 +433,9 @@ export async function sendEmailVerification(email: string): Promise<boolean> {
     const { token, tokenHash } = generateToken();
     await storeToken(email, tokenHash, "email_verification");
 
-    // Send email
-    const verifyUrl = `${APP_URL}/auth/verify-email?token=${token}`;
-
-    await resend.emails.send({
-      from: EMAIL_FROM,
-      to: email,
-      subject: "Verify your SubTracker email",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #1a1a1a;">Verify Your Email</h1>
-          <p>Welcome to SubTracker! Please verify your email address to complete your registration.</p>
-          <a href="${verifyUrl}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">
-            Verify Email
-          </a>
-          <p style="color: #666; font-size: 14px;">
-            This link will expire in ${TOKEN_EXPIRY_HOURS} hours.
-          </p>
-          <p style="color: #666; font-size: 14px;">
-            If you didn't create an account, you can safely ignore this email.
-          </p>
-        </div>
-      `,
-    });
+    // Send email - disabled for MVP
+    // const verifyUrl = `${APP_URL}/auth/verify-email?token=${token}`;
+    // await resend.emails.send({ ... });
 
     return true;
   } catch (error) {
