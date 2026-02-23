@@ -8,14 +8,17 @@ import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { DynamoDB } from "@aws-sdk/client-dynamodb";
 import bcrypt from "bcryptjs";
 
+const ACCESS_KEY_ID = process.env.APP_AWS_ACCESS_KEY_ID;
+const SECRET_ACCESS_KEY = process.env.APP_AWS_SECRET_ACCESS_KEY;
+
 const dynamoClient = DynamoDBDocument.from(
   new DynamoDB({
-    region: process.env.AWS_REGION || "us-east-1",
+    region: process.env.APP_AWS_REGION || "us-east-1",
     credentials:
-      process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
+      ACCESS_KEY_ID && SECRET_ACCESS_KEY
         ? {
-            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+            accessKeyId: ACCESS_KEY_ID,
+            secretAccessKey: SECRET_ACCESS_KEY,
           }
         : undefined,
   }),
@@ -28,7 +31,7 @@ const dynamoClient = DynamoDBDocument.from(
   }
 );
 
-const TABLE_NAME = process.env.AUTH_DYNAMODB_TABLE || "AuthUsers";
+const TABLE_NAME = process.env.APP_AUTH_DYNAMODB_TABLE || "AuthUsers";
 
 // Helper to find user by email for credentials auth
 async function findUserByEmail(email: string) {

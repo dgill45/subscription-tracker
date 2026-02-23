@@ -1,8 +1,10 @@
 import "server-only";
 import { KMSClient, EncryptCommand, DecryptCommand } from "@aws-sdk/client-kms";
 
-const REGION = process.env.AWS_REGION || "us-east-1";
-const KMS_KEY_ID = process.env.KMS_KEY_ID;
+const REGION = process.env.APP_AWS_REGION || "us-east-1";
+const KMS_KEY_ID = process.env.APP_KMS_KEY_ID;
+const ACCESS_KEY_ID = process.env.APP_AWS_ACCESS_KEY_ID;
+const SECRET_ACCESS_KEY = process.env.APP_AWS_SECRET_ACCESS_KEY;
 
 // Prefix to identify encrypted values
 const ENCRYPTED_PREFIX = "enc:";
@@ -10,10 +12,10 @@ const ENCRYPTED_PREFIX = "enc:";
 const kmsClient = new KMSClient({
   region: REGION,
   credentials:
-    process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
+    ACCESS_KEY_ID && SECRET_ACCESS_KEY
       ? {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+          accessKeyId: ACCESS_KEY_ID,
+          secretAccessKey: SECRET_ACCESS_KEY,
         }
       : undefined,
 });
