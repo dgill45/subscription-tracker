@@ -9,15 +9,8 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Redirect all requests to Next.js
-[[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/___netlify-handler"
-  status = 200
-  conditions = {Role = ["admin"]}
-
 # Environment variables to set in Netlify dashboard:
-# - NEXTAUTH_URL (your production URL)
+# - NEXTAUTH_URL (your production URL, e.g., https://ledgerpulse-cloud.netlify.app)
 # - NEXTAUTH_SECRET (generate with: openssl rand -base64 32)
 # - APP_AWS_REGION
 # - APP_AWS_ACCESS_KEY_ID
