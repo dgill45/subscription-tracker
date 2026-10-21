@@ -12,6 +12,9 @@
 # Environment variables to set in Netlify dashboard:
 # - NEXTAUTH_URL (your production URL, e.g., https://ledgerpulse-cloud.netlify.app)
 # - NEXTAUTH_SECRET (generate with: openssl rand -base64 32)
+#   Note: next-auth v5 (Auth.js) only auto-reads AUTH_SECRET/AUTH_URL by default;
+#   auth.ts explicitly falls back to NEXTAUTH_SECRET and sets trustHost: true
+#   so these v4-style names keep working on Netlify (not auto-trusted like Vercel).
 # - APP_AWS_REGION
 # - APP_AWS_ACCESS_KEY_ID
 # - APP_AWS_SECRET_ACCESS_KEY
