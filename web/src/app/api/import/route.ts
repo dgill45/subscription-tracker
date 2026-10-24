@@ -5,6 +5,8 @@ import { NextResponse } from "next/server";
 import { parseCsv, detectRecurring } from "@/lib/importUtils";
 import { auth } from "@/lib/auth";
 
+const MAX_CSV_LENGTH = 2 * 1024 * 1024;
+
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -22,15 +24,21 @@ export async function POST(req: Request) {
       );
     }
 
+    if (csvText.length > MAX_CSV_LENGTH) {
+      return NextResponse.json(
+        { error: "CSV is too large (max 2 MB)" },
+        { status: 413 }
+      );
+    }
+
     const transactions = parseCsv(csvText);
     const suggestions = detectRecurring(transactions);
 
     return NextResponse.json({ suggestions });
   } catch (err: unknown) {
     console.error("IMPORT ERROR", err);
-    const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-        { error: "Failed to analyze CSV", details: message },
+        { error: "Failed to analyze CSV" },
         { status: 500 }
     );
   }

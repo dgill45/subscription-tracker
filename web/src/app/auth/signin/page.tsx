@@ -36,8 +36,10 @@ function SignInForm() {
       });
 
       if (result?.error) {
+        if (result.code === "rate_limited") {
+          setError("Too many sign-in attempts. Please try again in a few minutes.");
         // Check if error is about unverified email
-        if (result.error.includes("EMAIL_NOT_VERIFIED") || result.error.includes("email")) {
+        } else if (result.error.includes("EMAIL_NOT_VERIFIED") || result.error.includes("email")) {
           setError("Please verify your email before signing in.");
           setShowResendVerification(true);
         } else {

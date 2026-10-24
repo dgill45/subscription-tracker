@@ -7,6 +7,7 @@ import {
     DeleteCommand,
     GetCommand
  } from "@aws-sdk/lib-dynamodb";
+import { ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb";
 import {
     Subscription,
     SubscriptionInput,
@@ -157,6 +158,8 @@ export async function updateSubscription(
           id,
         },
         UpdateExpression,
+        // Without this, UpdateItem upserts a partial record for an unknown id
+        ConditionExpression: "attribute_exists(id)",
         ExpressionAttributeValues: exprValues,
         ReturnValues: "ALL_NEW",
       })
@@ -164,6 +167,9 @@ export async function updateSubscription(
 
     return (res.Attributes as Subscription) || null;
   } catch (error) {
+    if (error instanceof ConditionalCheckFailedException) {
+      return null;
+    }
     console.error("Error updating subscription:", error);
     throw new Error("Failed to update subscription in database");
   }

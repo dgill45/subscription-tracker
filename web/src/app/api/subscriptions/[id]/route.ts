@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSubscriptionById, updateSubscription, deleteSubscription } from "@/server/storage";
+import { validateSubscriptionPatch } from "@/lib/types";
 import { auth } from "@/lib/auth";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -35,22 +36,12 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: "bad request" }, { status: 400 });
   }
 
-  const allowed = ["merchant", "amount", "period", "nextBillDate", "notes"] as const;
-  const patch: Record<string, unknown> = {};
-  for (const k of allowed) if (k in body) patch[k] = (body as Record<string, unknown>)[k];
-
-  if ("amount" in patch && (!Number.isFinite(Number(patch.amount)) || Number(patch.amount) <= 0)) {
-    return NextResponse.json({ error: "amount must be positive" }, { status: 400 });
+  const valid = validateSubscriptionPatch(body);
+  if (valid.ok !== true) {
+    return NextResponse.json({ error: "validation failed", details: valid.errors }, { status: 400 });
   }
 
-  if ("nextBillDate" in patch) {
-    const d = new Date(String(patch.nextBillDate));
-    if (Number.isNaN(d.getTime())) {
-      return NextResponse.json({ error: "invalid nextBillDate" }, { status: 400 });
-    }
-  }
-
-  const updated = await updateSubscription(session.user.id, id, patch);
+  const updated = await updateSubscription(session.user.id, id, valid.patch);
   if (!updated) return NextResponse.json({ error: "not found" }, { status: 404 });
   return NextResponse.json(updated);
 }

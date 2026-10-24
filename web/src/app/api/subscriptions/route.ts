@@ -22,16 +22,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const body = await req.json().catch(() => null);
+  const valid = validateSubscriptionInput(body);
+  if (valid.ok !== true) {
+    return NextResponse.json({ error: "validation failed", details: valid.errors }, { status: 400 });
+  }
+
   try {
-    const body = await req.json();
-    const valid = validateSubscriptionInput(body);
-    if (valid.ok !== true) {
-      return NextResponse.json({ error: "validation failed", details: valid.errors }, { status: 400 });
-    }
     const sub = await createSubscription(session.user.id, body);
     return NextResponse.json(sub, { status: 201 });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: "bad request", details: message }, { status: 400 });
+    console.error("CREATE SUBSCRIPTION ERROR", err);
+    return NextResponse.json({ error: "Failed to create subscription" }, { status: 500 });
   }
 }
