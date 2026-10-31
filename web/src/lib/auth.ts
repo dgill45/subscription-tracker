@@ -4,6 +4,8 @@ import NextAuth from "next-auth";
 // import GitHub from "next-auth/providers/github";
 // import Resend from "next-auth/providers/resend";
 import Credentials from "next-auth/providers/credentials";
+import { CredentialsSignin } from "next-auth";
+import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
 import { DynamoDBAdapter } from "@auth/dynamodb-adapter";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { DynamoDB } from "@aws-sdk/client-dynamodb";
@@ -33,6 +35,10 @@ const dynamoClient = DynamoDBDocument.from(
 );
 
 const TABLE_NAME = process.env.APP_AUTH_DYNAMODB_TABLE || "AuthUsers";
+
+class RateLimitedError extends CredentialsSignin {
+  code = "rate_limited";
+}
 
 // Helper to find user by email for credentials auth
 async function findUserByEmail(email: string) {
@@ -87,13 +93,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
+      async authorize(credentials, request) {
+        const email = credentials?.email;
+        const password = credentials?.password;
+        if (
+          typeof email !== "string" ||
+          typeof password !== "string" ||
+          !email ||
+          !password ||
+          email.length > 254 ||
+          password.length > 128
+        ) {
           return null;
         }
 
-        const email = credentials.email as string;
-        const password = credentials.password as string;
+        // Limit by IP and by account, so neither spraying one account from many
+        // IPs nor many accounts from one IP gets unlimited guesses
+        const ipLimit = checkRateLimit(`login:ip:${getClientIdentifier(request)}`, RATE_LIMITS.login);
+        const emailLimit = checkRateLimit(`login:email:${email.toLowerCase()}`, RATE_LIMITS.login);
+        if (!ipLimit.success || !emailLimit.success) {
+          throw new RateLimitedError();
+        }
 
         try {
           const user = await findUserByEmail(email);

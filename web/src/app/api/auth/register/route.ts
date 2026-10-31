@@ -24,8 +24,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json();
-    const { email, password, name } = body;
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return NextResponse.json(
+        { error: "Invalid request body" },
+        { status: 400 }
+      );
+    }
+    const { password } = body;
+    const email = typeof body.email === "string" ? body.email.trim() : body.email;
+    const name = typeof body.name === "string" ? body.name.trim() || undefined : body.name;
 
     // Validate input
     if (!email || typeof email !== "string") {
@@ -49,11 +57,26 @@ export async function POST(request: Request) {
       );
     }
 
+    // bcrypt silently ignores everything past 72 bytes
+    if (Buffer.byteLength(password, "utf8") > 72) {
+      return NextResponse.json(
+        { error: "Password must be at most 72 characters" },
+        { status: 400 }
+      );
+    }
+
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (email.length > 254 || !emailRegex.test(email)) {
       return NextResponse.json(
         { error: "Invalid email format" },
+        { status: 400 }
+      );
+    }
+
+    if (name !== undefined && (typeof name !== "string" || name.length > 100)) {
+      return NextResponse.json(
+        { error: "Name must be text of at most 100 characters" },
         { status: 400 }
       );
     }

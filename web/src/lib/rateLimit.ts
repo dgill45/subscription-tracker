@@ -81,6 +81,12 @@ export function checkRateLimit(key: string, config: RateLimitConfig): RateLimitR
  * Get client identifier from request (IP address or forwarded IP)
  */
 export function getClientIdentifier(request: Request): string {
+  // Set by Netlify's edge and not client-controllable, unlike x-forwarded-for
+  const netlifyIp = request.headers.get("x-nf-client-connection-ip");
+  if (netlifyIp) {
+    return netlifyIp;
+  }
+
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
     return forwarded.split(",")[0].trim();

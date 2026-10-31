@@ -34,7 +34,7 @@ export function Navigation() {
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-2">
               <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                SubTracker
+                LedgerPulse
               </div>
             </Link>
           </div>

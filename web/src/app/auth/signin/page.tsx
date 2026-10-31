@@ -36,8 +36,10 @@ function SignInForm() {
       });
 
       if (result?.error) {
+        if (result.code === "rate_limited") {
+          setError("Too many sign-in attempts. Please try again in a few minutes.");
         // Check if error is about unverified email
-        if (result.error.includes("EMAIL_NOT_VERIFIED") || result.error.includes("email")) {
+        } else if (result.error.includes("EMAIL_NOT_VERIFIED") || result.error.includes("email")) {
           setError("Please verify your email before signing in.");
           setShowResendVerification(true);
         } else {
@@ -103,7 +105,7 @@ function SignInForm() {
       <div className="max-w-md w-full space-y-8 p-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            SubTracker
+            LedgerPulse
           </h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
             Sign in to manage your subscriptions
