@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SubTracker - Subscription Management",
+  title: "LedgerPulse - Subscription Management",
   description: "Track and manage your recurring subscriptions",
 };
 
